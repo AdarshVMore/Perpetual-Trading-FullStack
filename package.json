@@ -20,5 +20,10 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ]
+  ],
+  "dependencies": {
+    "@types/redis": "^4.0.11",
+    "redis": "^5.12.1",
+    "zod": "^4.4.3"
+  }
 }

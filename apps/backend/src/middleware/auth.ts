@@ -19,10 +19,17 @@ export async function authUserMiddleware(req:Request, res:Response,next:NextFunc
         return
     }
 
-    const verificationId = jwt.verify(token, userJWT_Secret)
+    try{
+        const verificationId = jwt.verify(token, userJWT_Secret)
+        
+        next()
 
 
-    next()
+    }catch(err){
+        console.log(err)
+    }
+
+
 
 }
 
