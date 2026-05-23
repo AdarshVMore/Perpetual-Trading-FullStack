@@ -9,15 +9,20 @@ import { Router } from "express";
 import type { Response, Request } from "express";
 import { authUserMiddleware, authAdminMiddleware } from "../middleware/auth";
 import {createRedisConnection} from "../../../../packages/lib/redis-client"
+import type { RedisClientType } from "redis";
 
 const routes = Router()
-const redisClient = createRedisConnection()
 
 routes.post("/create-order", authUserMiddleware, async (req:Request, res:Response) => {
     const {userId, price, qty, marketId, orderType, positionType, leverage } = req.body
-    
+    const redisClient =  await createRedisConnection()
+    if(!redisClient){
+        console.log("")
+        return
+    }
 
-
+    const res1 = redisClient.XADD("new-name", "*", {'price': price, 'qty': qty, 'orderType': orderType})
+    console.log(res1)
 })
 routes.post("/cancle-order/:orderId",authUserMiddleware, (req:Request, res:Response) => {
     const orderId = req.params.orderId

@@ -7,6 +7,12 @@
     "@types/bun": "latest",
     "prisma": "^7.8.0"
   },
+  "scripts": {
+     "dev": "echo bun index.ts",
+    "build": "echo bun build",
+    "test": "echo 'Add test script here'",
+    "lint": "echo 'Add lint script here'"
+  },
   "peerDependencies": {
     "typescript": "^5"
   },
@@ -17,6 +23,7 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/redis": "^4.0.11",
+    "@repo": "",
     "bcrypt": "^6.0.0",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
