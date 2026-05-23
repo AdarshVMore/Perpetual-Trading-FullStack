@@ -45,7 +45,7 @@ model Orders {
   leverage          Int
   Margin            Int?
   marketId          String            
-  marketType        MarketType  
+  orderType        OrderType  
   fills             Fills[]             
   orderStatus       OrderStatus
   createdAt         DateTime              @default(now())
@@ -56,6 +56,7 @@ model Positions {
   id                String            @default(cuid())  @id
   userId            String
   user              User               @relation(fields:[userId], references: [id])
+  PositionType      PositionType
   positionStatus    PositionStatus
 }
 
@@ -71,7 +72,7 @@ model Balances {
   user              User               @relation(fields:[userId], references: [id])
 }
 
-enum MarketType {
+enum OrderType {
   MARKET
   LIMIT
 }
