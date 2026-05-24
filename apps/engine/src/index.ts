@@ -1,6 +1,6 @@
 import { Engine } from "./classes/engine";
 import express from "express"
-import {createRedisConnection} from "../../../packages/lib/redis-client"
+import {createRedisConnection} from "@redis-client"
 
 const app = express()
 app.use(express.json())

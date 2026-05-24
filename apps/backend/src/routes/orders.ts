@@ -8,7 +8,9 @@
 import { Router } from "express";
 import type { Response, Request } from "express";
 import { authUserMiddleware, authAdminMiddleware } from "../middleware/auth";
-import {createRedisConnection} from "../../../../packages/lib/redis-client"
+import {createRedisConnection} from "@redis-client"
+import {prisma} from "@prisma-db"
+
 import type { RedisClientType } from "redis";
 
 const routes = Router()
@@ -22,7 +24,7 @@ routes.post("/create-order", authUserMiddleware, async (req:Request, res:Respons
     }
 
     const res1 = redisClient.XADD("new-name", "*", {'price': price, 'qty': qty, 'orderType': orderType})
-    console.log(res1)
+    console.log("added to new-name... ",res1)
 })
 routes.post("/cancle-order/:orderId",authUserMiddleware, (req:Request, res:Response) => {
     const orderId = req.params.orderId
