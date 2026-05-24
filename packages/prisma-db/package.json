@@ -1,5 +1,5 @@
 {
-  "name": "prisma-db",
+  "name": "@prisma-db",
   "module": "index.ts",
   "type": "module",
   "private": true,

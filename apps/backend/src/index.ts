@@ -13,5 +13,5 @@ app.use("/api/v1/order", orderRoutes)
 
 
 app.listen(3000, ()=>{
-    console.log("backend server has started on port 3001")
+    console.log("backend server has started on port 3000")
 })

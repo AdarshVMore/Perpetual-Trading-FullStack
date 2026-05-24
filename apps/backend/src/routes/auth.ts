@@ -10,7 +10,7 @@ const JWT_SECRET = ""
 import { Router } from "express";
 import type { Response, Request } from "express";
 import bcrypt from "bcrypt"
-import prisma from "../../../../packages/prisma-db/src/index"
+import db from "@prisma-db"
 import jwt from "jsonwebtoken"
 import z from "zod";
 import {userSchemaValidation} from "../../../../packages/types/zod/user.validation"
@@ -21,7 +21,7 @@ routes.post("/signup", async (req: Request, res: Response) => {
   const { email, password } = userSchemaValidation.parse(req.body) 
 
   try {
-    const userExists = await prisma.user.findUnique({
+    const userExists = await db.user.findUnique({
       where: { email: email },
     });
 
@@ -31,7 +31,7 @@ routes.post("/signup", async (req: Request, res: Response) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const saveUser = await prisma.user.create({
+    const saveUser = await db.user.create({
       data: { email: email, password: hashedPassword },
     });
 
@@ -56,7 +56,7 @@ routes.post("/signup", async (req: Request, res: Response) => {
 routes.post("/signin", async (req, res) => {
   const { email, password } = req.body;
   try {
-    const userExists = await prisma.user.findUnique({ where: { email: email } });
+    const userExists = await db.user.findUnique({ where: { email: email } });
     if (!userExists) {
       return res.json({ message: "user does not exists" });
     }

@@ -9,6 +9,10 @@
   "peerDependencies": {
     "typescript": "^5"
   },
+  "scripts": {
+  "dev": "bun --watch src/index.ts",
+  "build": "bun build src/index.ts --outdir dist"
+},
   "dependencies": {
     "@prisma-db": "workspace:*",
     "@redis-client": "workspace:*",

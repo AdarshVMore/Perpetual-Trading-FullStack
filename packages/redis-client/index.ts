@@ -1,13 +1,13 @@
 import { createClient } from "redis";
 import type { RedisClientType } from "redis";
 
-const redisClient: RedisClientType | null = null;
+let redisClient: RedisClientType | null = null;
 
-const redisUrl = "redis://resis:6379";
+const redisUrl = "redis://localhost:6379";
 
 export async function createRedisConnection(): Promise<RedisClientType | null> {
   if (!redisClient) {
-    const redisClient = createClient({ url: redisUrl }) as RedisClientType;
+    redisClient = createClient({ url: redisUrl }) as RedisClientType;
     redisClient.on("error", (error:Error) => {
       console.log(error);
     });

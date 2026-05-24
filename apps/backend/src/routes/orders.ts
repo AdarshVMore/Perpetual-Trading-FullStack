@@ -9,22 +9,32 @@ import { Router } from "express";
 import type { Response, Request } from "express";
 import { authUserMiddleware, authAdminMiddleware } from "../middleware/auth";
 import {createRedisConnection} from "@redis-client"
-import {prisma} from "@prisma-db"
-
 import type { RedisClientType } from "redis";
+import db from "@prisma-db"
 
 const routes = Router()
 
-routes.post("/create-order", authUserMiddleware, async (req:Request, res:Response) => {
+let redisClient:RedisClientType | null
+
+export async function connectRedisBackend(){
+    redisClient = await createRedisConnection()
+    console.log("connected backend with redis")
+    return redisClient
+}
+
+connectRedisBackend()
+routes.post("/create-order", async (req:Request, res:Response) => {
     const {userId, price, qty, marketId, orderType, positionType, leverage } = req.body
-    const redisClient =  await createRedisConnection()
+    console.log(userId, price, qty, marketId, orderType, positionType, leverage)
     if(!redisClient){
         console.log("")
+        res.status(400).json({message: "unable to start redis"})
         return
     }
-
-    const res1 = redisClient.XADD("new-name", "*", {'price': price, 'qty': qty, 'orderType': orderType})
+    console.log("backend redis connected")
+    const res1 = await redisClient.XADD("new-name", "*", {'price': price, 'qty': qty, 'orderType': orderType})
     console.log("added to new-name... ",res1)
+    res.status(200).json({message: `recieved ${res1}`})
 })
 routes.post("/cancle-order/:orderId",authUserMiddleware, (req:Request, res:Response) => {
     const orderId = req.params.orderId
