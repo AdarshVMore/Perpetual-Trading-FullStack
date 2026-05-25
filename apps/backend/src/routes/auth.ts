@@ -13,7 +13,7 @@ import bcrypt from "bcrypt"
 import db from "@prisma-db"
 import jwt from "jsonwebtoken"
 import z from "zod";
-import {userSchemaValidation} from "../../../../packages/types/zod/user.validation"
+import {userSchemaValidation} from "@types"
 
 const routes = Router()
 

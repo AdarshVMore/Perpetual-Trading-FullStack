@@ -4,6 +4,7 @@ import { authUserMiddleware, authAdminMiddleware } from "../middleware/auth";
 import {createRedisConnection} from "@redis-client"
 import type { RedisClientType } from "redis";
 import db from "@prisma-db"
+import CreateOrderSchema from "@types"
 
 const routes = Router()
 
@@ -17,7 +18,7 @@ export async function connectRedisBackend(){
 
 connectRedisBackend()
 routes.post("/create-order", async (req:Request, res:Response) => {
-    const {userId, price, qty, marketId, orderType, positionType, leverage } = req.body
+    const {userId, price, qty, marketId, orderType, positionType, leverage } = CreateOrderSchema.parse(req.body) 
     console.log(userId, price, qty, marketId, orderType, positionType, leverage)
     if(!redisClient){
         console.log("")
