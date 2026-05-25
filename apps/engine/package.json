@@ -16,6 +16,7 @@
   "dependencies": {
     "@prisma-db": "workspace:*",
     "@redis-client": "workspace:*",
+    "@shared-types": "workspace:*",
     "@types/express": "^5.0.6",
     "@types/redis": "^4.0.11",
     "express": "^5.2.1",

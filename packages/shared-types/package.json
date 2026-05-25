@@ -1,5 +1,5 @@
 {
-  "name": "@types",
+  "name": "@shared-types",
   "private": true,
   "devDependencies": {
     "@types/bun": "latest"

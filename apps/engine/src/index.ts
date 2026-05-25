@@ -2,16 +2,19 @@ import { Engine } from "./classes/engine";
 import express from "express"
 import {createRedisConnection} from "@redis-client"
 import {LinkList, OrderedMap} from "js-sdsl"
+import type {User, OrderBooks, Fills } from "@shared-types"
 
 const orderedMap = new OrderedMap()
 const linkedList = new LinkList()
 
-const Users = []
-const Orders = []
-const Fills = []
+const users:User[] = []
+const orderBook:OrderBooks[] = []
+const fills:Fills[] = []
 
 const app = express()
 app.use(express.json())
+
+let data
 
 export async function redisInit(){
     console.log("starting redis on engine")
@@ -22,7 +25,7 @@ export async function redisInit(){
         return
     }
     console.log("waiting for response from stream.......")
-    const data = await redisClient.xRange('new-name', '-', '+');
+    data = await redisClient.xRange('new-name', '-', '+');
     console.log("data is" , data)
 
 }
@@ -30,6 +33,8 @@ export async function redisInit(){
 redisInit()
 
 setInterval(redisInit, 2000)
+
+
 
 // User      = userid => Balance => Position max 1 position for 1 Market => Orders => 
 // OrderBook = MarketSymbol :  {

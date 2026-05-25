@@ -1,9 +1,5 @@
 import {LinkList, OrderedMap} from "js-sdsl"
 
-const orderedMap = new OrderedMap()
-const linkedList = new LinkList()
-
-
 // ====================================================  ENUMS   =========================================================
 
 type positionType = 'LONG' | 'SHORT' ;
@@ -73,7 +69,7 @@ export interface SingleOrderBook {
 }
 
 export interface OrderBooks {
-  [market: string]: SingleOrderBook;
+  [marketId: string]: SingleOrderBook;
 }
 
 
@@ -91,6 +87,11 @@ export interface Fills {
 }
 
 
-import { userSchemaValidation , CreateOrderSchema, getOrderSchema, getFillsSchema, cancleOrdersSchema} from "./zod/user.validation";
-
-export default {userSchemaValidation, CreateOrderSchema, getOrderSchema, getFillsSchema, cancleOrdersSchema} 
+export {
+  userSchemaValidation,
+  CreateOrderSchema,
+  getOrderSchema,
+  getFillsSchema,
+  cancleOrdersSchema,
+  createMarketSchema
+} from "./zod/user.validation";

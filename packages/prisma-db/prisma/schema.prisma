@@ -17,9 +17,6 @@ model User {
   email             String            @unique
   password          String
   orders            Orders[]
-  fills             Fills[]
-  balances          Balances[]
-  position          Positions[]
 }
 
 model Fills {
@@ -52,13 +49,6 @@ model Orders {
   updatedAt         DateTime              @updatedAt
 }
 
-model Positions {
-  id                String            @default(cuid())  @id
-  userId            String
-  user              User               @relation(fields:[userId], references: [id])
-  PositionType      PositionType
-  positionStatus    PositionStatus
-}
 
 model Markets {
   id               String            @default(cuid())  @id
@@ -66,11 +56,6 @@ model Markets {
   market           String
 }
 
-model Balances {
-  id                String            @default(cuid())  @id
-  userId            String
-  user              User               @relation(fields:[userId], references: [id])
-}
 
 enum OrderType {
   MARKET
