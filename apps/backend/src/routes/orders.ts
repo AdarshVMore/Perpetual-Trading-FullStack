@@ -1,10 +1,3 @@
-// /create-order
-// /cancle-order/:id
-// /create-market
-// /get-order/:id
-// /get-fills/:marketId
-
-
 import { Router } from "express";
 import type { Response, Request } from "express";
 import { authUserMiddleware, authAdminMiddleware } from "../middleware/auth";
@@ -33,6 +26,7 @@ routes.post("/create-order", async (req:Request, res:Response) => {
     }
     console.log("backend redis connected")
     const res1 = await redisClient.XADD("new-name", "*", {'price': price, 'qty': qty, 'orderType': orderType})
+    
     console.log("added to new-name... ",res1)
     res.status(200).json({message: `recieved ${res1}`})
 })

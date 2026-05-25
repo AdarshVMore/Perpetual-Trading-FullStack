@@ -10,15 +10,16 @@
     "typescript": "^5"
   },
   "scripts": {
-  "dev": "bun --watch src/index.ts",
-  "build": "bun build src/index.ts --outdir dist"
-},
+    "dev": "bun --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist"
+  },
   "dependencies": {
     "@prisma-db": "workspace:*",
     "@redis-client": "workspace:*",
     "@types/express": "^5.0.6",
     "@types/redis": "^4.0.11",
     "express": "^5.2.1",
+    "js-sdsl": "^4.4.2",
     "redis": "^5.12.1"
   }
 }
