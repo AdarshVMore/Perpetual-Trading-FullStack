@@ -16,6 +16,11 @@ export async function connectRedisBackend(){
     return redisClient
 }
 
+const redisStreamName = process.env.REDIS_STREAM_NAME
+
+
+console.log('name of the stream', redisStreamName)
+
 connectRedisBackend()
 routes.post("/create-order", async (req:Request, res:Response) => {
     const result = CreateOrderSchema.safeParse(req.body) 
@@ -40,9 +45,9 @@ routes.post("/create-order", async (req:Request, res:Response) => {
     let res1
 
     if(orderType === "MARKET"){
-        res1 = await redisClient.XADD("new-name", "*", {'qty': qty.toString(), 'orderType': orderType}) // redis only accepts buffer | string , so cant pass numbers in redis . so added .toString() numbers
+        res1 = await redisClient.XADD("send-to-engine", "*", {'type':'create-order', 'userId': userId ,'qty': qty.toString(),'marketId':marketId, 'orderType': orderType, 'positionType': positionType, 'leverage': leverage.toString()}) // redis only accepts buffer | string , so cant pass numbers in redis . so added .toString() numbers
     } else if(orderType === "LIMIT"){
-        res1 = await redisClient.XADD("new-name", "*", {'price':price.toString() ,'qty': qty.toString(), 'orderType': orderType})
+        res1 = await redisClient.XADD("send-to-engine", "*", {'type':'create-order', 'userId': userId, 'price':price.toString() ,'qty': qty.toString(), 'marketId':marketId, 'orderType': orderType, 'positionType': positionType, 'leverage': leverage.toString()})
     }
     
     console.log("added to new-name... ",res1)
@@ -58,7 +63,7 @@ routes.post("/cancle-order/:orderId",authUserMiddleware, (req:Request, res:Respo
     const {orderId} = result.data
 
 })
-routes.post("/create-market",authAdminMiddleware, (req:Request, res:Response) => {
+routes.post("/create-market",authAdminMiddleware, async (req:Request, res:Response) => {
     const result = createMarketSchema.safeParse(req.body)
     if(!result.success){
         return res.status(400).json({
@@ -66,6 +71,9 @@ routes.post("/create-market",authAdminMiddleware, (req:Request, res:Response) =>
         })
     }
     const {marketName, marketId, maxLeverage} = result.data
+    const res1 = await redisClient?.xAdd('send-to-engine', '*', {'type':'create-market', 'marketName':marketName, 'marketId':marketId, 'maxLeverage':maxLeverage.toString()})
+    console.log("added to send-to-engine... ",res1)
+    res.status(200).json({message: `recieved ${res1}`})
 })
 routes.get("/get-order/:orderId", authUserMiddleware, (req:Request, res:Response) => {
     const orderId = req.params.orderId

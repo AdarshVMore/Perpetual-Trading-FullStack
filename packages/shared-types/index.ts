@@ -58,6 +58,7 @@ export interface Order {
   status: orderStatus;
   price: number;
   qty: number;
+  leverage: number;
   remainingQty: number;
 }
 
@@ -72,9 +73,7 @@ export interface OrderBooks {
   [marketId: string]: SingleOrderBook;
 }
 
-
 // ====================================================  FILLS   =========================================================
-
 
 export interface Fills {
   maker: string;
@@ -85,7 +84,6 @@ export interface Fills {
   long: number;
   short: number;
 }
-
 
 export {
   userSchemaValidation,

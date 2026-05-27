@@ -1,48 +1,37 @@
-import { Engine } from "./classes/engine";
-import express from "express"
-import {createRedisConnection} from "@redis-client"
-import {LinkList, OrderedMap} from "js-sdsl"
-import type {User, OrderBooks, Fills } from "@shared-types"
+import { createRedisConnection } from "@redis-client";
+import { LinkList, OrderedMap } from "js-sdsl";
+import type { User, OrderBooks, Fills } from "@shared-types";
+import { EngineServer } from "./classes/EngineServer";
 
-const orderedMap = new OrderedMap()
-const linkedList = new LinkList()
+const orderedMap = new OrderedMap();
+const linkedList = new LinkList();
 
-const users:User[] = []
-const orderBook:OrderBooks[] = []
-const fills:Fills[] = []
+const users: User[] = [];
+export const orderBook: OrderBooks[] = [];
+const fills: Fills[] = [];
 
-const app = express()
-app.use(express.json())
+let data;
 
-let data
+export async function redisInit() {
+  console.log("starting redis on engine");
+  const redisClient = await createRedisConnection();
 
-export async function redisInit(){
-    console.log("starting redis on engine")
-    const redisClient = await createRedisConnection()
-
-    if(!redisClient){
-        console.log("redis client in engine isnt working")
-        return
+  if (!redisClient) {
+    console.log("redis client in engine isnt working");
+    return;
+  }
+  console.log("waiting for response from stream.......");
+  data = await redisClient.xRange("send-to-engine", "-", "+");
+  console.log("data is", data);
+  for(let singleData of data){
+    const engineServer = new EngineServer()
+    if(singleData.message.type === "create-order") {
+        engineServer.createOrder(singleData)
     }
-    console.log("waiting for response from stream.......")
-    data = await redisClient.xRange('new-name', '-', '+');
-    console.log("data is" , data)
-
+  }
+  
 }
 
-redisInit()
+redisInit();
 
-setInterval(redisInit, 2000)
-
-
-
-// User      = userid => Balance => Position max 1 position for 1 Market => Orders => 
-// OrderBook = MarketSymbol :  {
-//                              Asks: orderedMap -> linkedList of orders, 
-//                              Bids: orderedMap -> linkedList of orders, 
-//                              lastTradedPrice (price on which last trade in orderbook happened)
-//                              indexPrice (live Price of the market)
-//                              }
-// Fills     = []
-// Engine Class => 
-// OrderedMap + LinkedList => library
+setInterval(redisInit, 2000);
