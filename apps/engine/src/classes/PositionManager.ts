@@ -1,4 +1,9 @@
 export class PositionManager{
+
+    constructor(riskManager, userManager){
+
+    }
+
     updatePosition(){
 
     }
@@ -24,6 +29,6 @@ export class PositionManager{
     }
 
     updateUnrealizedPnL(){
-        
+
     }
 }

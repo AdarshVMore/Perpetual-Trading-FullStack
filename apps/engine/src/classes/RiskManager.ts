@@ -1,12 +1,15 @@
+
+import type {Order} from "@shared-types"
+
 export class RiskManager{
 
     private maintainanceMarginPercent = 5
 
-    calculateMargin(){
-
+    calculateMargin(data:Order){
+        return (data.price * data.qty) / data.leverage
     }
 
-    validate(){
+    validate(userId:string){
 
     }
 

@@ -1,46 +1,26 @@
-import type { Order } from "@shared-types";
-import {OrderBook} from "./OrderBook"
-import { MatchingEngine } from "./MatchingEngine";
-import { UserManager } from "./UserManager";
-import { PositionManager } from "./PositionManager";
-import { RiskManager } from "./RiskManager";
-import { FillManager } from "./FillManager";
+import type { FillManager } from "./FillManager";
+import type { MatchingEngine } from "./MatchingEngine";
+import { OrderBook } from "./OrderBook";
+import type {Order} from "@shared-types"
+import type { PositionManager } from "./PositionManager";
+import type { RiskManager } from "./RiskManager";
+import type { UserManager } from "./UserManager";
 
 export class EngineServer {
-  private orderBook;
-  private matchingEngine;
-  private userManager;
-  private positionManager;
-  private riskManager;
-  private fillManager;
+  constructor(
+    private orderBook: OrderBook,
+    private matchingEngine: MatchingEngine,
+    private userManager: UserManager,
+    private positionManager: PositionManager,
+    private riskManager: RiskManager,
+    private fillManager: FillManager,
+  ) {}
 
-  constructor(){
-    this.orderBook = OrderBook
-    this.matchingEngine = MatchingEngine
-    this.userManager = UserManager
-    this.positionManager = PositionManager
-    this.riskManager = RiskManager
-    this.fillManager = FillManager
+  public createOrder(data:any) {
+    const margin = this.riskManager.calculateMargin(data);
+    console.log("margin calculated is ====> ", margin)
+    const valid = this.riskManager.validate(data.userId);
   }
 
-  createOrder(data:any){
-    const margin = this.riskManager.calculateMargin()
-    const valid = this.riskManager.validate()
-
-
-    if (valid) {
-        this.userManager.addOrder()
-        const result = this.matchingEngine.matchOrder()
-        if(result.remainingQty > 0) {
-            this.orderBook.addOrder()
-        }
-        this.positionManager.update()
-    }
-  }
-
-  cancleOrder(orderId:string){
-    // remove from orderbook
-    // refund collateral
-    // update order status
-  }
+  public cancleOrder(orderId: string) {}
 }

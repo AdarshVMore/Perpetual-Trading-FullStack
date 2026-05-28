@@ -2,36 +2,32 @@ import { createRedisConnection } from "@redis-client";
 import { LinkList, OrderedMap } from "js-sdsl";
 import type { User, OrderBooks, Fills } from "@shared-types";
 import { EngineServer } from "./classes/EngineServer";
-
-const orderedMap = new OrderedMap();
-const linkedList = new LinkList();
+import { OrderBook } from "./classes/OrderBook";
+import { UserManager } from "./classes/UserManager";
+import { RiskManager } from "./classes/RiskManager";
+import { FillManager } from "./classes/FillManager";
+import { PositionManager } from "./classes/PositionManager";
+import { MatchingEngine } from "./classes/MatchingEngine";
+import { RedisManager } from "./classes/RedisManager";
 
 const users: User[] = [];
-export const orderBook: OrderBooks[] = [];
-const fills: Fills[] = [];
 
-let data;
+const orderBook = new OrderBook();
+const userManager = new UserManager(users);
+const riskManager = new RiskManager();
+const fillManager = new FillManager();
+const matchingEngine = new MatchingEngine(orderBook, fillManager);
+const positionManager = new PositionManager(riskManager, userManager);
+const engineServer = new EngineServer(
+  orderBook,
+  matchingEngine,
+  userManager,
+  positionManager,
+  riskManager,
+  fillManager,
+);
 
-export async function redisInit() {
-  console.log("starting redis on engine");
-  const redisClient = await createRedisConnection();
+const redisManager = new RedisManager(engineServer);
 
-  if (!redisClient) {
-    console.log("redis client in engine isnt working");
-    return;
-  }
-  console.log("waiting for response from stream.......");
-  data = await redisClient.xRange("send-to-engine", "-", "+");
-  console.log("data is", data);
-  for(let singleData of data){
-    const engineServer = new EngineServer()
-    if(singleData.message.type === "create-order") {
-        engineServer.createOrder(singleData)
-    }
-  }
-  
-}
-
-redisInit();
-
-setInterval(redisInit, 2000);
+redisManager.connect();
+redisManager.listen();

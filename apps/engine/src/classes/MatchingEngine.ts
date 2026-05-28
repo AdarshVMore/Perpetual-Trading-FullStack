@@ -1,11 +1,8 @@
-import { OrderBook } from "./OrderBook";
-import { FillManager } from "./FillManager";
-
 export class MatchingEngine {
   private orderBook;
   private fillManager;
 
-  constructor() {
+  constructor(OrderBook, FillManager) {
     this.orderBook = OrderBook
     this.fillManager = FillManager
   }

@@ -1,13 +1,8 @@
 import { OrderedMap, LinkList } from "js-sdsl";
 import type { Order, User } from "@shared-types";
-import { orderBook } from "..";
 
 export class OrderBook {
-  private orderBooks;
-
-  constructor(markets: string[]) {
-    this.orderBooks = orderBook;
-  }
+  private orderBooks:Order|null = null;
 
   getBook(marketId:string){}
 
