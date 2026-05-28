@@ -17,9 +17,26 @@ export class EngineServer {
   ) {}
 
   public createOrder(data:any) {
+    console.log("data recieved in the engine server", data)
+    let user = this.userManager.getUser(data.userId)
+
+    if(!user){
+      console.log("adding new user")
+      this.userManager.addUser(data.userId)
+      user = this.userManager.getUser(data.userId)
+    }
+
     const margin = this.riskManager.calculateMargin(data);
+    
     console.log("margin calculated is ====> ", margin)
-    const valid = this.riskManager.validate(data.userId);
+
+    const valid = this.riskManager.validate(data.userId, margin);
+    
+    console.log("validity of the user is ", valid)
+
+    if(valid) {
+
+    }
   }
 
   public cancleOrder(orderId: string) {}

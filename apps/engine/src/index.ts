@@ -10,11 +10,11 @@ import { PositionManager } from "./classes/PositionManager";
 import { MatchingEngine } from "./classes/MatchingEngine";
 import { RedisManager } from "./classes/RedisManager";
 
-const users: User[] = [];
+const users = new Map<string, User>();
 
 const orderBook = new OrderBook();
 const userManager = new UserManager(users);
-const riskManager = new RiskManager();
+const riskManager = new RiskManager(userManager);
 const fillManager = new FillManager();
 const matchingEngine = new MatchingEngine(orderBook, fillManager);
 const positionManager = new PositionManager(riskManager, userManager);

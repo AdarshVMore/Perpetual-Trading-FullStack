@@ -37,8 +37,6 @@ export type UserOrders = {
 
 export type User = {
   userId: string;
-  username: string;
-  password: string;
   collateral: {
     availabe: number;
     locked: number;
@@ -46,6 +44,7 @@ export type User = {
   positions: UserPositions[];
   orders: UserOrders[];
 };
+
 
 // ====================================================  ORDERBOOK   =========================================================
 

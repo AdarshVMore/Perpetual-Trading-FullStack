@@ -33,7 +33,8 @@ export class RedisManager {
         for (let stream of data) {
           for (let singleMessage of stream.messages) {
             const payload = singleMessage.message;
-            console.log("payload data is ", payload);
+            
+            console.log("payload data is ", JSON.stringify(payload));
             this.engineServer.createOrder(payload);
           }
         }

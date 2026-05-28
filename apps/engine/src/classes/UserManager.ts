@@ -1,27 +1,39 @@
-import type { User } from "@shared-types"
+import type { User, UserPositions, UserOrders } from "@shared-types";
 
-export class UserManager{
-    private users = new Map()
-    constructor(users: User[]){
-        // this.users = users
-    }
+export class UserManager {
+ 
+  constructor(public users: Map<string, User>) {
+  }
 
-    addOrder(){
-        // collateral validation
-        // lock collateral
-        // push order
-    }
+  addUser(userId: string) {
+    this.users.set(userId, {
+      userId: userId,
+      collateral: {
+        availabe: 0,
+        locked: 0,
+      },
+      positions: [],
+      orders: [],
+    });
+  }
 
-    updateOrder(){
-        // remainingQty -= tradedQty
-        // filledQty += tradedQty
-    }
+  getUser(userId:string){
+    console.log("current Users map is , ", this.users)
+    return this.users.get(userId)
+  }
 
-    updateBalance(){
+  addOrder(userId:string) {
+    // collateral validation
+    // lock collateral
+    // push order
+  }
 
-    }
+  updateOrder() {
+    // remainingQty -= tradedQty
+    // filledQty += tradedQty
+  }
 
-    addPosition(){
-        
-    }
+  updateBalance() {}
+
+  addPosition() {}
 }
