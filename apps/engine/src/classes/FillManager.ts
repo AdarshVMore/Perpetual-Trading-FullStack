@@ -1,13 +1,15 @@
+import type { Fills } from "@shared-types";
+
 export class FillManager{
 
-    private fills = []
+    private fills:Fills[] = []
 
-    createFill(){
-
+    createFill(fillsObject: Fills){
+        this.fills.push(fillsObject)
     }
 
     getFills(){
-
+        return this.fills
     }
     
 }

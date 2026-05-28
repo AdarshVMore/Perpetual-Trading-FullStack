@@ -1,4 +1,4 @@
-import type { User, UserPositions, UserOrders } from "@shared-types";
+import type { User, UserPositions, UserOrders, Order } from "@shared-types";
 
 export class UserManager {
  
@@ -22,10 +22,12 @@ export class UserManager {
     return this.users.get(userId)
   }
 
-  addOrder(userId:string) {
-    // collateral validation
-    // lock collateral
-    // push order
+  addOrder(userId:string, order:UserOrders) {
+    const user = this.users.get(userId)
+    if(!user) {
+        throw new Error("user does not exist to add order")
+    }
+    user.orders.push(order)
   }
 
   updateOrder() {
@@ -46,5 +48,7 @@ export class UserManager {
 
   updateBalance() {}
 
-  addPosition() {}
+  getPositiotns(userId:string){
+    return this.users.get(userId)?.positions
+  }
 }

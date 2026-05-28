@@ -36,14 +36,16 @@ export class EngineServer {
         
     if(valid) {
       this.userManager.lockBalance(user, margin)
-      this.userManager.addOrder(data)
+      this.userManager.addOrder(data.userId, data)
     }
 
-    if(data.marketType === "MARKET"){
-      this.orderBook.addMarketOrder(data)
-    } else {
-      this.orderBook.addLimitOrder(data)
-    }
+    // if(data.marketType === "MARKET"){
+    //   this.orderBook.addMarketOrder(data)
+    // } else {
+    //   this.orderBook.addLimitOrder(data)
+    // }
+
+    this.matchingEngine.matchOrder(data)
   }
 
   public cancleOrder(orderId: string) {}

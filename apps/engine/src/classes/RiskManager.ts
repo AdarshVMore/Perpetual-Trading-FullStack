@@ -33,6 +33,10 @@ export class RiskManager{
         }
     }
 
+    calculateMaintainanceMargin(margin:number){
+        return (margin * this.maintainanceMarginPercent) / 100
+    }
+
     calculateLiquidationMargin(){
         
     }

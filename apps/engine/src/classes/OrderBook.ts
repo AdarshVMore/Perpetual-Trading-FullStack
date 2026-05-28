@@ -37,19 +37,22 @@ export class OrderBook {
     if (!book) {
       throw new Error(`book with marketId ${data.marketId} does not exist`);
     }
-    let bestPrice = this.getBestPrice(data.positionType, book);
-
-    if (!bestPrice) {
-      throw new Error("best ptice does not exits");
-    }
 
     if (data.positionType === "LONG") {
-      if (bestPrice <= data.price) {
-        while (data.remainingQty <= 0) {
-          this.updateRemainingQty(data, bestPrice);
-        }
-      } else {
+      let bestPrice = this.getBestPrice(data.positionType, book);
+
+      if (!bestPrice) {
+        throw new Error("best ptice does not exits");
       }
+
+      while (data.remainingQty <= 0 || bestPrice <= data.price) {
+        bestPrice = this.getBestPrice(data.positionType, book);
+        if (!bestPrice) {
+          throw new Error("best ptice does not exits");
+        }
+        this.updateRemainingQty(data, bestPrice);
+      }
+      this.addToBook(data);
     } else {
     }
   }
@@ -61,11 +64,8 @@ export class OrderBook {
   }
 
   getBestPrice(positionType: positionType, orderBook: SingleOrderBook) {
-    if (positionType === "LONG") {
-      return orderBook.asks.front()?.[0];
-    } else {
-      return orderBook.bids.back()?.[0];
-    }
+    const bestPrice = positionType === "LONG" ? orderBook.asks.front()?.[0] :  orderBook.bids.back()?.[0];
+    return bestPrice
   }
 
   updateRemainingQty(data: Order, bestPrice: number) {
@@ -81,27 +81,34 @@ export class OrderBook {
     const tradeQty = Math.min(data.qty, inQueueQty?.remainingQty);
     data.remainingQty -= tradeQty;
     inQueueQty.remainingQty -= tradeQty;
+    if(inQueueQty.remainingQty === 0) {
+      queue.empty()
+      //  addFills => "Filled" makerId's Order Filled, takerId, orderId
+      // 
+
+    }
+    // addFills => "partialFill" makerId, takerId, orderId
+    // calculateSlippage => positions update in both Maker and Taker
     return tradeQty;
   }
 
   removeFilledOrder() {}
 
-  addToBook(data:Order){
-    if(data.positionType === "LONG"){
-      const book = this.orderBooks[data.marketId]
-      const side = data.positionType === "LONG" ? book?.bids : book?.asks
-      const list = side?.find(data.price)
-      if(!side){
-        throw new Error("side does not exists")
-      }
-      if(!list?.equals(side?.end())){
-        const queue = list?.pointer[1]
-        queue?.pushBack(data)
-      } else {
-        const newQueue = new LinkList<Order>
-        newQueue.pushBack(data)
-        this.orderBooks[data.marketId]?.bids.setElement(data.price, newQueue)
-      }
+  addToBook(data: Order) {
+    const book = this.orderBooks[data.marketId];
+    const side = data.positionType === "LONG" ? book?.bids : book?.asks;
+    const list = side?.find(data.price);
+    if (!side) {
+      throw new Error("side does not exists");
+    }
+    if (!list?.equals(side?.end())) {
+      // it means as we get a pointer to a node in here like -> [101, list of orders] and end() is the end, so if list equals equal to end , then ! of list is not end is true
+      const queue = list?.pointer[1];
+      queue?.pushBack(data);
+    } else {
+      const newQueue = new LinkList<Order>();
+      newQueue.pushBack(data);
+      this.orderBooks[data.marketId]?.bids.setElement(data.price, newQueue);
     }
   }
 

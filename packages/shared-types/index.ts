@@ -80,8 +80,6 @@ export interface Fills {
   marketId: string;
   qty: number;
   price: number;
-  long: number;
-  short: number;
 }
 
 export {
