@@ -14,7 +14,7 @@ const users = new Map<string, User>();
 
 const orderBook = new OrderBook();
 const userManager = new UserManager(users);
-const riskManager = new RiskManager(userManager);
+const riskManager = new RiskManager(userManager, orderBook);
 const fillManager = new FillManager();
 const matchingEngine = new MatchingEngine(orderBook, fillManager);
 const positionManager = new PositionManager(riskManager, userManager);

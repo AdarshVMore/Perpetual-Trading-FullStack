@@ -2,9 +2,9 @@ import {LinkList, OrderedMap} from "js-sdsl"
 
 // ====================================================  ENUMS   =========================================================
 
-type positionType = 'LONG' | 'SHORT' ;
-type marketType = "MARKET" | "LIMIT"
-type orderStatus = "OPEN" | "FILLED" | "PARTIAL_FILLED" | "CANCLE"
+export type positionType = 'LONG' | 'SHORT' ;
+export type marketType = "MARKET" | "LIMIT"
+export type orderStatus = "OPEN" | "FILLED" | "PARTIAL_FILLED" | "CANCLE"
 
 // ====================================================  USERS   =========================================================
 

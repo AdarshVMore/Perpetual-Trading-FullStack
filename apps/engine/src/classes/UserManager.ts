@@ -33,6 +33,17 @@ export class UserManager {
     // filledQty += tradedQty
   }
 
+  addBalance(user:User, balanceToAdd:number){
+    user.collateral.availabe += balanceToAdd
+    console.log("added balance")
+  }
+
+  lockBalance(user:User, margin:number){
+    user.collateral.availabe -= margin
+    user.collateral.locked += margin
+    console.log("locked Balance")
+  }
+
   updateBalance() {}
 
   addPosition() {}

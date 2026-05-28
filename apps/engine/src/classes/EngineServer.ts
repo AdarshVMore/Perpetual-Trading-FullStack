@@ -28,14 +28,21 @@ export class EngineServer {
 
     const margin = this.riskManager.calculateMargin(data);
     
-    console.log("margin calculated is ====> ", margin)
-
     const valid = this.riskManager.validate(data.userId, margin);
-    
-    console.log("validity of the user is ", valid)
 
+    if(!user) {
+      throw new Error("user not found")
+    }
+        
     if(valid) {
+      this.userManager.lockBalance(user, margin)
+      this.userManager.addOrder(data)
+    }
 
+    if(data.marketType === "MARKET"){
+      this.orderBook.addMarketOrder(data)
+    } else {
+      this.orderBook.addLimitOrder(data)
     }
   }
 
