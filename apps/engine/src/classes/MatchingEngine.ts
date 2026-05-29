@@ -78,9 +78,11 @@ export class MatchingEngine {
         maintainanceMargin: maintainanceMargin,
         liquidationPrice: liquidationPrice,
         pnL: pnl,
+        entryPrice: bestPrice,
         averagePrice: bestPrice,
         unrealisedPnL: 0,
       };
+      // update position and PnL and balance for both Maker and Taker
       if (!existingPositionTaker) {
         this.positionManager.addPosition(order.userId, position);
       } else {
@@ -95,18 +97,21 @@ export class MatchingEngine {
             this.positionManager.reversePosition(
               position,
               existingPositionTaker,
+              restingOrder.userId
             );
           }
           if (position.qty < existingPositionMaker.qty) {
             this.positionManager.reducePosition(
               position,
               existingPositionTaker,
+              restingOrder.userId
             );
           }
           if ((position.qty = existingPositionMaker.qty)) {
             this.positionManager.canclePosition(
               position,
               existingPositionTaker,
+              restingOrder.userId
             );
           }
         }

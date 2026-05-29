@@ -17,6 +17,7 @@ export type UserPositions = {
   maintainanceMargin: number;
   liquidationPrice: number;
   pnL: number;
+  entryPrice:number;
   averagePrice: number;
   unrealisedPnL: number;
 };

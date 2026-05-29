@@ -42,9 +42,37 @@ export class PositionManager {
     existingPosition.unrealisedPnL = 0; // need to know how to calculate this
   }
 
-  reducePosition(position: UserPositions, existingPosition: UserPositions) {}
+  reducePosition(position: UserPositions, existingPosition: UserPositions, userId:string) {
+    existingPosition.qty -= position.qty
+    
+    
+  }
 
-  canclePosition(position: UserPositions, existingPosition: UserPositions) {}
+  canclePosition(position: UserPositions, existingPosition: UserPositions, userId:string) {
+    let PnL = 0
+    if(existingPosition.positionType === "LONG"){
+        PnL = position.entryPrice - existingPosition.entryPrice
+    } else if (existingPosition.positionType === "SHORT"){
+        PnL = existingPosition.entryPrice - position.entryPrice
+    }
+    const user = this.userManager.getUser(userId)
+    if(!user){
+        throw new Error("user not found in canclePosition")
+    }
+    user.collateral.availabe = user.collateral.availabe + PnL + existingPosition.unrealisedPnL
+    user.collateral.locked -= (existingPosition.averagePrice * existingPosition.qty)
+    for (let singlePosition of user.positions){
+        if(singlePosition.marketId === position.marketId){
+            user.positions.filter(item => item != singlePosition)
+            break
+        }
+    }
+  }
 
-  reversePosition(position: UserPositions, existingPosition: UserPositions) {}
+  reversePosition(position: UserPositions, existingPosition: UserPositions, userId:string) {
+
+    existingPosition.positionType = position.positionType
+    existingPosition.qty = position.qty - existingPosition.qty
+    existingPosition.averagePrice
+  }
 }
