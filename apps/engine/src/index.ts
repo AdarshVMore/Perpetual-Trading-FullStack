@@ -17,7 +17,7 @@ const userManager = new UserManager(users);
 const riskManager = new RiskManager(userManager, orderBook);
 const fillManager = new FillManager();
 const positionManager = new PositionManager(riskManager, userManager);
-const matchingEngine = new MatchingEngine(orderBook, fillManager, positionManager);
+const matchingEngine = new MatchingEngine(orderBook, fillManager, positionManager, riskManager);
 const engineServer = new EngineServer(
   orderBook,
   matchingEngine,

@@ -3,6 +3,7 @@ import type {Order, User} from "@shared-types"
 import prisma from "@prisma-db"
 import { UserManager } from "./UserManager"
 import type { OrderBook } from "./OrderBook"
+import type { PositionType } from "@prisma-db/generated/prisma/enums"
 
 export class RiskManager{
 
@@ -37,7 +38,14 @@ export class RiskManager{
         return (margin * this.maintainanceMarginPercent) / 100
     }
 
-    calculateLiquidationMargin(){
-        
+    calculateLiquidationMargin(entryPrice:number, leverage:number, positionType:PositionType){
+        let liquidationPrice = 0
+        if(positionType === "LONG"){
+            liquidationPrice = entryPrice*(1-(1/leverage)+(this.maintainanceMarginPercent/100))
+        }
+        else {
+            liquidationPrice = entryPrice*(1+(1/leverage)-(this.maintainanceMarginPercent/100))
+        }
+        return liquidationPrice
     }
 }

@@ -55,12 +55,10 @@ export class MatchingEngine {
       const existingPositionTaker = this.positionManager.getPosition(order.userId, order.marketId)
       const margin = this.riskManager.calculateMargin(order)
       const maintainanceMargin = this.riskManager.calculateMaintainanceMargin(margin)
-      const liquidationPrice = this.riskManager.calculateLiquidationMargin()
+      const liquidationPrice = this.riskManager.calculateLiquidationMargin(order.price, order.leverage, order.positionType)
       const pnl = 0
       const averagePrice = 0
-
-      if(!existingPositionTaker){
-        let position = {
+      let position = {
           marketId: restingOrder.userId,
             positionType: order.positionType,
             qty: tradeQty,
@@ -72,7 +70,14 @@ export class MatchingEngine {
             averagePrice: averagePrice,
             unrealisedPnL: 0,
         }
+      if(!existingPositionTaker){
         this.positionManager.addPosition(order.userId, position)
+      } else {
+        if(!existingPositionMaker){
+          throw new Error("existing position for marker is not found")
+        }
+        this.positionManager.updatePosition(position,existingPositionMaker)
+        this.positionManager.updatePosition(position,existingPositionTaker)
       }
     }
   }

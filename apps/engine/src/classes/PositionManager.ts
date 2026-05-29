@@ -23,7 +23,7 @@ export class PositionManager{
         }
     }   
 
-    updatePosition(){
+    updatePosition(position:UserPositions, existingPosition:UserPositions){
 
     }
 
