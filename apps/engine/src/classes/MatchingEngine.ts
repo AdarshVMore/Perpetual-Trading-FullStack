@@ -10,7 +10,7 @@ export class MatchingEngine {
     private orderBook: OrderBook,
     private fillsManager: FillManager,
     private positionManager: PositionManager,
-    private riskManager: RiskManager
+    private riskManager: RiskManager,
   ) {}
 
   matchOrder(order: Order) {
@@ -51,33 +51,65 @@ export class MatchingEngine {
 
       this.fillsManager.createFill(createFillObject);
 
-      const existingPositionMaker = this.positionManager.getPosition(restingOrder.userId, order.marketId)
-      const existingPositionTaker = this.positionManager.getPosition(order.userId, order.marketId)
-      const margin = this.riskManager.calculateMargin(order)
-      const maintainanceMargin = this.riskManager.calculateMaintainanceMargin(margin)
-      const liquidationPrice = this.riskManager.calculateLiquidationMargin(order.price, order.leverage, order.positionType)
-      const pnl = 0
-      const averagePrice = 0
+      const existingPositionMaker = this.positionManager.getPosition(
+        restingOrder.userId,
+        order.marketId,
+      );
+      const existingPositionTaker = this.positionManager.getPosition(
+        order.userId,
+        order.marketId,
+      );
+      const margin = this.riskManager.calculateMargin(order);
+      const maintainanceMargin =
+        this.riskManager.calculateMaintainanceMargin(margin);
+      const liquidationPrice = this.riskManager.calculateLiquidationMargin(
+        order.price,
+        order.leverage,
+        order.positionType,
+      );
+      const pnl = 0;
+      const averagePrice = 0;
       let position = {
-          marketId: restingOrder.userId,
-            positionType: order.positionType,
-            qty: tradeQty,
-            leverage: order.leverage,
-            margin: margin,
-            maintainanceMargin: maintainanceMargin,
-            liquidationPrice: liquidationPrice,
-            pnL: pnl,
-            averagePrice: averagePrice,
-            unrealisedPnL: 0,
-        }
-      if(!existingPositionTaker){
-        this.positionManager.addPosition(order.userId, position)
+        marketId: restingOrder.userId,
+        positionType: order.positionType,
+        qty: tradeQty,
+        leverage: order.leverage,
+        margin: margin,
+        maintainanceMargin: maintainanceMargin,
+        liquidationPrice: liquidationPrice,
+        pnL: pnl,
+        averagePrice: bestPrice,
+        unrealisedPnL: 0,
+      };
+      if (!existingPositionTaker) {
+        this.positionManager.addPosition(order.userId, position);
       } else {
-        if(!existingPositionMaker){
-          throw new Error("existing position for marker is not found")
+        if (!existingPositionMaker) {
+          throw new Error("existing position for marker is not found");
         }
-        this.positionManager.updatePosition(position,existingPositionMaker)
-        this.positionManager.updatePosition(position,existingPositionTaker)
+        if (position.positionType === existingPositionMaker.positionType) {
+          this.positionManager.updatePosition(position, existingPositionMaker);
+        }
+        if (position.positionType != existingPositionMaker.positionType) {
+          if (position.qty > existingPositionMaker.qty) {
+            this.positionManager.reversePosition(
+              position,
+              existingPositionTaker,
+            );
+          }
+          if (position.qty < existingPositionMaker.qty) {
+            this.positionManager.reducePosition(
+              position,
+              existingPositionTaker,
+            );
+          }
+          if ((position.qty = existingPositionMaker.qty)) {
+            this.positionManager.canclePosition(
+              position,
+              existingPositionTaker,
+            );
+          }
+        }
       }
     }
   }
