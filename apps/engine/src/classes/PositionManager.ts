@@ -16,10 +16,9 @@ export class PositionManager {
     for (let position of positions) {
       if (position.marketId === marketId) {
         return position;
-      } else {
-        return false;
       }
     }
+    return null;
   }
 
   addPosition(userId: string, position: UserPositions) {
@@ -39,40 +38,87 @@ export class PositionManager {
 
     existingPosition.qty += position.qty;
     existingPosition.averagePrice = totalAvgPrice;
-    existingPosition.unrealisedPnL = 0; // need to know how to calculate this
+    existingPosition.margin += position.margin;
   }
 
-  reducePosition(position: UserPositions, existingPosition: UserPositions, userId:string) {
-    existingPosition.qty -= position.qty
-    
-    
+  reducePosition(
+    position: UserPositions,
+    existingPosition: UserPositions,
+    userId: string,
+  ) {
+    let pnl =
+      position.qty * (position.averagePrice - existingPosition.averagePrice);
+    if (existingPosition.positionType === "LONG") {
+      pnl =
+        position.qty * (position.averagePrice - existingPosition.averagePrice);
+    } else if (existingPosition.positionType === "SHORT") {
+      pnl =
+        position.qty * (existingPosition.averagePrice - position.averagePrice);
+    }
+    existingPosition.qty -= position.qty;
+    existingPosition.pnL = pnl;
+    const user = this.userManager.getUser(userId);
+    if (!user) {
+      throw new Error("user not found in reduce Position");
+    }
+    const unlockMargin = existingPosition.margin * (existingPosition.qty / position.qty) // i have doubt here, while reducing exting qty > incomming qty . so this (existingQty/incommingQty) is the correct way and not the way around
+    existingPosition.margin -= unlockMargin
+    user.collateral.availabe += pnl;
+    user.collateral.locked -= (existingPosition.entryPrice * position.qty)
   }
 
-  canclePosition(position: UserPositions, existingPosition: UserPositions, userId:string) {
+  canclePosition(
+    position: UserPositions,
+    existingPosition: UserPositions,
+    userId: string,
+  ) {
+    let PnL = 0;
+    if (existingPosition.positionType === "LONG") {
+      PnL = (position.entryPrice - existingPosition.entryPrice) * position.qty;
+    } else if (existingPosition.positionType === "SHORT") {
+      PnL = (existingPosition.entryPrice - position.entryPrice) * position.qty;
+    }
+    const user = this.userManager.getUser(userId);
+    if (!user) {
+      throw new Error("user not found in canclePosition");
+    }
+    user.collateral.availabe =
+      user.collateral.availabe + PnL + existingPosition.unrealisedPnL;
+    user.collateral.locked = user.collateral.locked - existingPosition.margin;
+
+    for (let singlePosition of user.positions) {
+      if (singlePosition.marketId === position.marketId) {
+        user.positions = user.positions.filter((item) => item != singlePosition);
+        break;
+      }
+    }
+  }
+
+  reversePosition(
+    position: UserPositions,
+    existingPosition: UserPositions,
+    userId: string,
+  ) {
     let PnL = 0
-    if(existingPosition.positionType === "LONG"){
-        PnL = position.entryPrice - existingPosition.entryPrice
-    } else if (existingPosition.positionType === "SHORT"){
-        PnL = existingPosition.entryPrice - position.entryPrice
-    }
     const user = this.userManager.getUser(userId)
+    if(existingPosition.positionType === "LONG"){
+        PnL = (existingPosition.averagePrice - position.averagePrice) * (position.qty - existingPosition.qty)
+    } else if (existingPosition.positionType === "SHORT"){
+        PnL = (position.averagePrice - existingPosition.averagePrice) * (position.qty - existingPosition.qty)
+    }
+    existingPosition.positionType = position.positionType;
+    existingPosition.qty = position.qty - existingPosition.qty;
+    existingPosition.averagePrice = position.averagePrice;
+    existingPosition.margin = position.margin
+    existingPosition.pnL += PnL
     if(!user){
-        throw new Error("user not found in canclePosition")
+        throw new Error("user not found in reverse Position")
     }
-    user.collateral.availabe = user.collateral.availabe + PnL + existingPosition.unrealisedPnL
-    user.collateral.locked -= (existingPosition.averagePrice * existingPosition.qty)
-    for (let singlePosition of user.positions){
-        if(singlePosition.marketId === position.marketId){
-            user.positions.filter(item => item != singlePosition)
-            break
-        }
-    }
-  }
-
-  reversePosition(position: UserPositions, existingPosition: UserPositions, userId:string) {
-
-    existingPosition.positionType = position.positionType
-    existingPosition.qty = position.qty - existingPosition.qty
-    existingPosition.averagePrice
+    user.collateral.availabe += PnL
   }
 }
+
+
+// initial      10      @100       long            m=1000/lev      pnl=0
+// incomming    13      @90        short           m=1070/lev      pnl=0
+// final        3       @          short           m=              pnl=30
