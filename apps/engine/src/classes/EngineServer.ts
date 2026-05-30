@@ -39,12 +39,6 @@ export class EngineServer {
       this.userManager.addOrder(data.userId, data)
     }
 
-    // if(data.marketType === "MARKET"){
-    //   this.orderBook.addMarketOrder(data)
-    // } else {
-    //   this.orderBook.addLimitOrder(data)
-    // }
-
     this.matchingEngine.matchOrder(data)
   }
 

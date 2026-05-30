@@ -60,25 +60,37 @@ export class MatchingEngine {
         order.userId,
         order.marketId,
       );
-      const margin = tradeQty * order.price;
-      const maintainanceMargin =
-        this.riskManager.calculateMaintainanceMargin(margin);
-      const liquidationPrice = this.riskManager.calculateLiquidationMargin(
+      const takerMargin =
+  (tradeQty * bestPrice) /
+  order.leverage;
+
+const makerMargin =
+  (tradeQty * bestPrice) /
+  restingOrder.leverage;
+
+      const takerMaintainanceMargin =
+        this.riskManager.calculateMaintainanceMargin(takerMargin);
+      const makerMaintainanceMargin =
+        this.riskManager.calculateMaintainanceMargin(makerMargin);
+      const TakerLiquidationPrice = this.riskManager.calculateLiquidationMargin(
         order.price,
         order.leverage,
         order.positionType,
       );
-      const pnl = 0;
-      const averagePrice = 0;
+      const MakerLiquidationPrice = this.riskManager.calculateLiquidationMargin(
+        restingOrder.price,
+        restingOrder.leverage,
+        restingOrder.positionType,
+      );
       let position = {
-        marketId: restingOrder.marketId,
+        marketId: order.marketId,
         positionType: order.positionType,
         qty: tradeQty,
         leverage: order.leverage,
-        margin: margin,
-        maintainanceMargin: maintainanceMargin,
-        liquidationPrice: liquidationPrice,
-        pnL: pnl,
+        margin: takerMargin,
+        maintainanceMargin: takerMaintainanceMargin,
+        liquidationPrice: TakerLiquidationPrice,
+        pnL: 0,
         entryPrice: bestPrice,
         averagePrice: bestPrice,
         unrealisedPnL: 0,
@@ -88,12 +100,12 @@ export class MatchingEngine {
         marketId: restingOrder.marketId,
         positionType: (order.positionType === "LONG" ? "SHORT" : "LONG") as PositionType,
         qty: tradeQty,
-        leverage: order.leverage,
-        margin: margin,
-        maintainanceMargin: maintainanceMargin,
-        liquidationPrice: liquidationPrice,
-        pnL: pnl,
-        entryPrice: bestPrice,
+        leverage: restingOrder.leverage,
+        margin: restingOrder.remainingQty*restingOrder.price,
+        maintainanceMargin: makerMaintainanceMargin,
+        liquidationPrice: MakerLiquidationPrice,
+        pnL: 0,
+        entryPrice: restingOrder.price,
         averagePrice: bestPrice,
         unrealisedPnL: 0,
       };

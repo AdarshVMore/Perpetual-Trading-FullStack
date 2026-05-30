@@ -3,10 +3,13 @@ import type { RiskManager } from "./RiskManager";
 import type { UserManager } from "./UserManager";
 
 export class PositionManager {
+    public allPositions: Map<string, UserPositions[]> // marketId => positions
   constructor(
     private riskManager: RiskManager,
     private userManager: UserManager,
-  ) {}
+  ) {
+    this.allPositions = new Map()
+  }
 
   getPosition(userId: string, marketId: string) {
     const positions = this.userManager.getPositiotns(userId);
@@ -19,6 +22,10 @@ export class PositionManager {
       }
     }
     return null;
+  }
+
+  getAllPositions(marketId:string) {
+    return this.allPositions.get(marketId)
   }
 
   manipulatePositions(

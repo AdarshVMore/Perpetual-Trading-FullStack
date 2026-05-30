@@ -1,8 +1,9 @@
 import type { User, UserPositions, UserOrders, Order } from "@shared-types";
+import { string } from "zod";
 
 export class UserManager {
  
-  constructor(public users: Map<string, User>) {
+  constructor(public users: Map<string, User>, public userIds:string[]) {
   }
 
   addUser(userId: string) {
@@ -15,6 +16,7 @@ export class UserManager {
       positions: [],
       orders: [],
     });
+    this.userIds.push(userId)
   }
 
   getUser(userId:string){

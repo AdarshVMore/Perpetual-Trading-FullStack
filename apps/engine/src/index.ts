@@ -11,9 +11,10 @@ import { MatchingEngine } from "./classes/MatchingEngine";
 import { RedisManager } from "./classes/RedisManager";
 
 const users = new Map<string, User>();
+const userIds:string[] = []
 
 const orderBook = new OrderBook();
-const userManager = new UserManager(users);
+const userManager = new UserManager(users, userIds);
 const riskManager = new RiskManager(userManager, orderBook);
 const fillManager = new FillManager();
 const positionManager = new PositionManager(riskManager, userManager);
