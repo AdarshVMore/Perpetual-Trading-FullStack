@@ -21,6 +21,39 @@ export class PositionManager {
     return null;
   }
 
+  manipulatePositions(
+    incommingPosition: UserPositions,
+    existingPosition: UserPositions,
+    userId: string,
+  ) {
+    if (incommingPosition.positionType === existingPosition.positionType) {
+      this.updatePosition(incommingPosition, existingPosition);
+    }
+    if (incommingPosition.positionType != existingPosition.positionType) {
+        if (incommingPosition.qty > existingPosition.qty) {
+          this.reversePosition(
+            incommingPosition,
+            existingPosition,
+            userId,
+          );
+        }
+        if (incommingPosition.qty < existingPosition.qty) {
+          this.reducePosition(
+            incommingPosition,
+            existingPosition,
+            userId,
+          );
+        }
+        if ((incommingPosition.qty = existingPosition.qty)) {
+          this.canclePosition(
+            incommingPosition,
+            existingPosition,
+            userId,
+          );
+        }
+      }
+  }
+
   addPosition(userId: string, position: UserPositions) {
     const user = this.userManager.getUser(userId);
     if (!user) {
@@ -61,10 +94,11 @@ export class PositionManager {
     if (!user) {
       throw new Error("user not found in reduce Position");
     }
-    const unlockMargin = existingPosition.margin * (existingPosition.qty / position.qty) // i have doubt here, while reducing exting qty > incomming qty . so this (existingQty/incommingQty) is the correct way and not the way around
-    existingPosition.margin -= unlockMargin
+    const unlockMargin =
+      existingPosition.margin * (existingPosition.qty / position.qty); // i have doubt here, while reducing exting qty > incomming qty . so this (existingQty/incommingQty) is the correct way and not the way around
+    existingPosition.margin -= unlockMargin;
     user.collateral.availabe += pnl;
-    user.collateral.locked -= (existingPosition.entryPrice * position.qty)
+    user.collateral.locked -= existingPosition.entryPrice * position.qty;
   }
 
   canclePosition(
@@ -88,7 +122,9 @@ export class PositionManager {
 
     for (let singlePosition of user.positions) {
       if (singlePosition.marketId === position.marketId) {
-        user.positions = user.positions.filter((item) => item != singlePosition);
+        user.positions = user.positions.filter(
+          (item) => item != singlePosition,
+        );
         break;
       }
     }
@@ -99,25 +135,28 @@ export class PositionManager {
     existingPosition: UserPositions,
     userId: string,
   ) {
-    let PnL = 0
-    const user = this.userManager.getUser(userId)
-    if(existingPosition.positionType === "LONG"){
-        PnL = (existingPosition.averagePrice - position.averagePrice) * (position.qty - existingPosition.qty)
-    } else if (existingPosition.positionType === "SHORT"){
-        PnL = (position.averagePrice - existingPosition.averagePrice) * (position.qty - existingPosition.qty)
+    let PnL = 0;
+    const user = this.userManager.getUser(userId);
+    if (existingPosition.positionType === "LONG") {
+      PnL =
+        (existingPosition.averagePrice - position.averagePrice) *
+        (position.qty - existingPosition.qty);
+    } else if (existingPosition.positionType === "SHORT") {
+      PnL =
+        (position.averagePrice - existingPosition.averagePrice) *
+        (position.qty - existingPosition.qty);
     }
     existingPosition.positionType = position.positionType;
     existingPosition.qty = position.qty - existingPosition.qty;
     existingPosition.averagePrice = position.averagePrice;
-    existingPosition.margin = position.margin
-    existingPosition.pnL += PnL
-    if(!user){
-        throw new Error("user not found in reverse Position")
+    existingPosition.margin = position.margin;
+    existingPosition.pnL += PnL;
+    if (!user) {
+      throw new Error("user not found in reverse Position");
     }
-    user.collateral.availabe += PnL
+    user.collateral.availabe += PnL;
   }
 }
-
 
 // initial      10      @100       long            m=1000/lev      pnl=0
 // incomming    13      @90        short           m=1070/lev      pnl=0

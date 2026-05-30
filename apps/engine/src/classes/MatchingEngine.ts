@@ -83,39 +83,29 @@ export class MatchingEngine {
         unrealisedPnL: 0,
       };
       // update position and PnL and balance for both Maker and Taker
+
       if (!existingPositionTaker) {
         this.positionManager.addPosition(order.userId, position);
       } else {
-        if (!existingPositionMaker) {
-          throw new Error("existing position for marker is not found");
-        }
-        if (position.positionType === existingPositionMaker.positionType) {
-          this.positionManager.updatePosition(position, existingPositionMaker);
-        }
-        if (position.positionType != existingPositionMaker.positionType) {
-          if (position.qty > existingPositionMaker.qty) {
-            this.positionManager.reversePosition(
-              position,
-              existingPositionTaker,
-              restingOrder.userId
-            );
-          }
-          if (position.qty < existingPositionMaker.qty) {
-            this.positionManager.reducePosition(
-              position,
-              existingPositionTaker,
-              restingOrder.userId
-            );
-          }
-          if ((position.qty = existingPositionMaker.qty)) {
-            this.positionManager.canclePosition(
-              position,
-              existingPositionTaker,
-              restingOrder.userId
-            );
-          }
-        }
+        this.positionManager.manipulatePositions(
+          position,
+          existingPositionTaker,
+          order.userId,
+        );
       }
+
+      if (!existingPositionMaker) {
+        throw new Error("existing position for marker is not found");
+      }
+      this.positionManager.manipulatePositions(
+        position,
+        existingPositionMaker,
+        restingOrder.userId,
+      );
     }
   }
 }
+
+// makerPositions         exists           =>             => Yes   check side =>  update
+// takerPositions         may/maynot exist => No ? Add    => Yes ? check side =>  update
+// incommingPositions
