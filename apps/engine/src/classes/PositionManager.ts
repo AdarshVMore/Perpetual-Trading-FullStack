@@ -30,28 +30,16 @@ export class PositionManager {
       this.updatePosition(incommingPosition, existingPosition);
     }
     if (incommingPosition.positionType != existingPosition.positionType) {
-        if (incommingPosition.qty > existingPosition.qty) {
-          this.reversePosition(
-            incommingPosition,
-            existingPosition,
-            userId,
-          );
-        }
-        if (incommingPosition.qty < existingPosition.qty) {
-          this.reducePosition(
-            incommingPosition,
-            existingPosition,
-            userId,
-          );
-        }
-        if ((incommingPosition.qty = existingPosition.qty)) {
-          this.canclePosition(
-            incommingPosition,
-            existingPosition,
-            userId,
-          );
-        }
+      if (incommingPosition.qty > existingPosition.qty) {
+        this.reversePosition(incommingPosition, existingPosition, userId);
       }
+      if (incommingPosition.qty < existingPosition.qty) {
+        this.reducePosition(incommingPosition, existingPosition, userId);
+      }
+      if (incommingPosition.qty === existingPosition.qty) {
+        this.canclePosition(incommingPosition, existingPosition, userId);
+      }
+    }
   }
 
   addPosition(userId: string, position: UserPositions) {
@@ -95,10 +83,10 @@ export class PositionManager {
       throw new Error("user not found in reduce Position");
     }
     const unlockMargin =
-      existingPosition.margin * (existingPosition.qty / position.qty); // i have doubt here, while reducing exting qty > incomming qty . so this (existingQty/incommingQty) is the correct way and not the way around
+      existingPosition.margin * (position.qty / existingPosition.qty); // i have doubt here, while reducing exting qty > incomming qty . so this (existingQty/incommingQty) is the correct way and not the way around
     existingPosition.margin -= unlockMargin;
-    user.collateral.availabe += pnl;
-    user.collateral.locked -= existingPosition.entryPrice * position.qty;
+    user.collateral.availabe += pnl + unlockMargin;
+    user.collateral.locked -= unlockMargin;
   }
 
   canclePosition(
@@ -139,12 +127,11 @@ export class PositionManager {
     const user = this.userManager.getUser(userId);
     if (existingPosition.positionType === "LONG") {
       PnL =
-        (existingPosition.averagePrice - position.averagePrice) *
-        (position.qty - existingPosition.qty);
-    } else if (existingPosition.positionType === "SHORT") {
+        (existingPosition.averagePrice - position.averagePrice) * position.qty;
+    } else 
+    if (existingPosition.positionType === "SHORT") {
       PnL =
-        (position.averagePrice - existingPosition.averagePrice) *
-        (position.qty - existingPosition.qty);
+        (position.averagePrice - existingPosition.averagePrice) * position.qty;
     }
     existingPosition.positionType = position.positionType;
     existingPosition.qty = position.qty - existingPosition.qty;

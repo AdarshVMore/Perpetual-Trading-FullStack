@@ -4,6 +4,7 @@ import type { OrderBook } from "./OrderBook";
 import type { LinkList } from "js-sdsl";
 import type { PositionManager } from "./PositionManager";
 import type { RiskManager } from "./RiskManager";
+import type { PositionType } from "@prisma-db/generated/prisma/enums";
 
 export class MatchingEngine {
   constructor(
@@ -59,7 +60,7 @@ export class MatchingEngine {
         order.userId,
         order.marketId,
       );
-      const margin = this.riskManager.calculateMargin(order);
+      const margin = tradeQty * order.price;
       const maintainanceMargin =
         this.riskManager.calculateMaintainanceMargin(margin);
       const liquidationPrice = this.riskManager.calculateLiquidationMargin(
@@ -70,7 +71,7 @@ export class MatchingEngine {
       const pnl = 0;
       const averagePrice = 0;
       let position = {
-        marketId: restingOrder.userId,
+        marketId: restingOrder.marketId,
         positionType: order.positionType,
         qty: tradeQty,
         leverage: order.leverage,
@@ -82,7 +83,21 @@ export class MatchingEngine {
         averagePrice: bestPrice,
         unrealisedPnL: 0,
       };
-      // update position and PnL and balance for both Maker and Taker
+
+      const makerPosition = {
+        marketId: restingOrder.marketId,
+        positionType: (order.positionType === "LONG" ? "SHORT" : "LONG") as PositionType,
+        qty: tradeQty,
+        leverage: order.leverage,
+        margin: margin,
+        maintainanceMargin: maintainanceMargin,
+        liquidationPrice: liquidationPrice,
+        pnL: pnl,
+        entryPrice: bestPrice,
+        averagePrice: bestPrice,
+        unrealisedPnL: 0,
+      };
+      
 
       if (!existingPositionTaker) {
         this.positionManager.addPosition(order.userId, position);
@@ -95,13 +110,13 @@ export class MatchingEngine {
       }
 
       if (!existingPositionMaker) {
-        throw new Error("existing position for marker is not found");
-      }
-      this.positionManager.manipulatePositions(
-        position,
-        existingPositionMaker,
-        restingOrder.userId,
-      );
+        this.positionManager.addPosition(restingOrder.userId, makerPosition);
+      } else
+        this.positionManager.manipulatePositions(
+          makerPosition,
+          existingPositionMaker,
+          restingOrder.userId,
+        );
     }
   }
 }
