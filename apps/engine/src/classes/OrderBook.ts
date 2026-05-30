@@ -64,32 +64,39 @@ export class OrderBook {
   }
 
   getBestPrice(positionType: positionType, orderBook: SingleOrderBook) {
-    const bestPrice = positionType === "LONG" ? orderBook.asks.front()?.[0] :  orderBook.bids.back()?.[0];
-    return bestPrice
+    const bestPrice =
+      positionType === "LONG"
+        ? orderBook.asks.front()?.[0]
+        : orderBook.bids.back()?.[0];
+    return bestPrice;
   }
 
   updateRemainingQty(data: Order, bestPrice: number) {
-    const iterator = this.orderBooks[data.marketId]?.asks.find(bestPrice);
+    const book = this.getBook(data.marketId);
+    if(!book){
+      throw new Error("book does not exist for updating emaining qty")
+    }
+    const side = data.positionType === "LONG" ? book.asks : book.bids;
+    const iterator = side.find(bestPrice);
     const queue = iterator?.pointer[1];
     if (!queue) {
       throw new Error("there is no queue for this price");
     }
-    const inQueueQty = queue.front();
-    if (!inQueueQty) {
+    const restingOrder = queue.front();
+    if (!restingOrder) {
       throw new Error("there is no .front() in the queue");
     }
-    const tradeQty = Math.min(data.qty, inQueueQty?.remainingQty);
+    const tradeQty = Math.min(data.qty, restingOrder?.remainingQty);
     data.remainingQty -= tradeQty;
-    inQueueQty.remainingQty -= tradeQty;
-    if(inQueueQty.remainingQty === 0) {
-      queue.empty()
-      //  addFills => "Filled" makerId's Order Filled, takerId, orderId
-      // 
-
+    restingOrder.remainingQty -= tradeQty;
+    if (restingOrder.remainingQty === 0) {
+      queue.popFront();
+      if(queue.size()=== 0){
+        side.eraseElementByKey(bestPrice)
+      }
     }
-    // addFills => "partialFill" makerId, takerId, orderId
-    // calculateSlippage => positions update in both Maker and Taker
-    return tradeQty;
+    
+    return {tradeQty, restingOrder}
   }
 
   removeFilledOrder() {}

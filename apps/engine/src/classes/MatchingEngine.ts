@@ -25,22 +25,8 @@ export class MatchingEngine {
         break;
         throw new Error("-");
       }
-      const side = order.positionType === "LONG" ? book.asks : book.bids;
-      const iter = side.find(bestPrice);
-      if (iter.equals(side.end())) {
-        break;
-      }
-      const queue = iter.pointer[1];
-      if (!queue) {
-        break;
-      }
-      const restingOrder = queue.popFront();
-      if (!restingOrder) {
-        break;
-      }
-      const tradeQty = Math.min(order.remainingQty, restingOrder?.remainingQty);
-      order.remainingQty -= tradeQty;
-      restingOrder.remainingQty -= tradeQty;
+
+      const{tradeQty, restingOrder} = this.orderBook.updateRemainingQty(order, bestPrice)
 
       const createFillObject = {
         maker: restingOrder.userId,
@@ -52,6 +38,10 @@ export class MatchingEngine {
 
       this.fillsManager.createFill(createFillObject);
 
+      // Limit Order
+      // Market Order
+      // Add to Book
+
       const existingPositionMaker = this.positionManager.getPosition(
         restingOrder.userId,
         order.marketId,
@@ -60,25 +50,21 @@ export class MatchingEngine {
         order.userId,
         order.marketId,
       );
-      const takerMargin =
-  (tradeQty * bestPrice) /
-  order.leverage;
+      const takerMargin = (tradeQty * bestPrice) / order.leverage;
 
-const makerMargin =
-  (tradeQty * bestPrice) /
-  restingOrder.leverage;
+      const makerMargin = (tradeQty * bestPrice) / restingOrder.leverage;
 
       const takerMaintainanceMargin =
         this.riskManager.calculateMaintainanceMargin(takerMargin);
       const makerMaintainanceMargin =
         this.riskManager.calculateMaintainanceMargin(makerMargin);
       const TakerLiquidationPrice = this.riskManager.calculateLiquidationMargin(
-        order.price,
+        bestPrice,
         order.leverage,
         order.positionType,
       );
       const MakerLiquidationPrice = this.riskManager.calculateLiquidationMargin(
-        restingOrder.price,
+        bestPrice,
         restingOrder.leverage,
         restingOrder.positionType,
       );
@@ -98,18 +84,19 @@ const makerMargin =
 
       const makerPosition = {
         marketId: restingOrder.marketId,
-        positionType: (order.positionType === "LONG" ? "SHORT" : "LONG") as PositionType,
+        positionType: (order.positionType === "LONG"
+          ? "SHORT"
+          : "LONG") as PositionType,
         qty: tradeQty,
         leverage: restingOrder.leverage,
-        margin: restingOrder.remainingQty*restingOrder.price,
+        margin: makerMargin,
         maintainanceMargin: makerMaintainanceMargin,
         liquidationPrice: MakerLiquidationPrice,
         pnL: 0,
-        entryPrice: restingOrder.price,
+        entryPrice: bestPrice,
         averagePrice: bestPrice,
         unrealisedPnL: 0,
       };
-      
 
       if (!existingPositionTaker) {
         this.positionManager.addPosition(order.userId, position);

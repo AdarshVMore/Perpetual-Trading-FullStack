@@ -39,7 +39,7 @@ export class EngineServer {
       this.userManager.addOrder(data.userId, data)
     }
 
-    this.matchingEngine.matchOrder(data)
+    const response = this.matchingEngine.matchOrder(data)
   }
 
   public cancleOrder(orderId: string) {}
