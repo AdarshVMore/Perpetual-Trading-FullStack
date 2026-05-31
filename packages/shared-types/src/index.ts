@@ -90,4 +90,10 @@ export {
   getFillsSchema,
   cancleOrdersSchema,
   createMarketSchema
-} from "./zod/user.validation";
+} from "./zod/zod.validation"
+
+export type {
+  WsRequests,
+  EngineCommands,
+  EngineEvents
+} from "./ws/ws.types"

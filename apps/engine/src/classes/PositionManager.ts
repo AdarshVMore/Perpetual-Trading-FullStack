@@ -1,4 +1,4 @@
-import type { UserPositions } from "../../../../packages/shared-types";
+import type { UserPositions } from "@shared-types";
 import type { RiskManager } from "./RiskManager";
 import type { UserManager } from "./UserManager";
 
@@ -94,7 +94,7 @@ export class PositionManager {
     existingPosition.margin -= unlockMargin;
     user.collateral.availabe += pnl + unlockMargin;
     user.collateral.locked -= unlockMargin;
-    
+
   }
 
   canclePosition(

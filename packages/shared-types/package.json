@@ -8,7 +8,7 @@
     "typescript": "^5"
   },
   "exports": {
-    ".": "./index.ts"
+    ".": "./src/index.ts"
   },
   "dependencies": {
     "js-sdsl": "^4.4.2"

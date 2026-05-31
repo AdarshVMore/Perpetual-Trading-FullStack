@@ -15,9 +15,11 @@
   "peerDependencies": {
     "typescript": "^5"
   },
-   "dependencies": {
+  "dependencies": {
     "@prisma-db": "workspace:*",
     "@redis-client": "workspace:*",
-    "@shared-types": "workspace:*"
+    "@shared-types": "workspace:*",
+    "@types/ws": "^8.18.1",
+    "ws": "^8.21.0"
   }
 }
