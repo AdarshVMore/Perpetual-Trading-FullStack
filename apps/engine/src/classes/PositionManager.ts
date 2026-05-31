@@ -94,6 +94,7 @@ export class PositionManager {
     existingPosition.margin -= unlockMargin;
     user.collateral.availabe += pnl + unlockMargin;
     user.collateral.locked -= unlockMargin;
+    
   }
 
   canclePosition(

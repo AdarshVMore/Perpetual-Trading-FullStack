@@ -16,6 +16,18 @@ export class MatchingEngine {
 
   matchOrder(order: Order) {
     const book = this.orderBook.getBook(order.marketId);
+    const response:any = {
+        orderId: order.orderId,
+        status: "",
+        fills: [],
+        remainingQuantity: order.qty,
+        cancelledQuantity: 0,
+        margin: {
+          locked: 0,
+          used: 0,
+          released: 0,
+        },
+      };
     if (!book) {
       throw new Error(`book ith ${order.marketId} does not exist`);
     }
@@ -26,7 +38,14 @@ export class MatchingEngine {
         throw new Error("-");
       }
 
-      const{tradeQty, restingOrder} = this.orderBook.updateRemainingQty(order, bestPrice)
+      const { tradeQty, restingOrder } = this.orderBook.updateRemainingQty(
+        order,
+        bestPrice,
+      );
+
+      
+
+      response.remainingQty -= tradeQty
 
       const createFillObject = {
         maker: restingOrder.userId,
@@ -37,6 +56,7 @@ export class MatchingEngine {
       };
 
       this.fillsManager.createFill(createFillObject);
+      response.fills.push(createFillObject)
 
       // Limit Order
       // Market Order
@@ -51,6 +71,7 @@ export class MatchingEngine {
         order.marketId,
       );
       const takerMargin = (tradeQty * bestPrice) / order.leverage;
+      response.margin.locked = takerMargin
 
       const makerMargin = (tradeQty * bestPrice) / restingOrder.leverage;
 
@@ -116,6 +137,10 @@ export class MatchingEngine {
           existingPositionMaker,
           restingOrder.userId,
         );
+    }
+    if (order.remainingQty === 0) {
+      response.status = "filled"
+      return response
     }
   }
 }
