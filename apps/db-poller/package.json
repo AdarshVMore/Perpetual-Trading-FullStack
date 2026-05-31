@@ -6,7 +6,18 @@
   "devDependencies": {
     "@types/bun": "latest"
   },
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist",
+    "test": "echo 'Add test script here'",
+    "lint": "echo 'Add lint script here'"
+  },
   "peerDependencies": {
     "typescript": "^5"
+  },
+   "dependencies": {
+    "@prisma-db": "workspace:*",
+    "@redis-client": "workspace:*",
+    "@shared-types": "workspace:*"
   }
 }
