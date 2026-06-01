@@ -83,6 +83,15 @@ export interface Fills {
   price: number;
 }
 
+// ====================================================  DBPoller =======================================================
+
+
+export interface dbPollerPayload {
+  "method": "string",
+  "data": Order | Fills
+}
+
+
 export {
   userSchemaValidation,
   CreateOrderSchema,

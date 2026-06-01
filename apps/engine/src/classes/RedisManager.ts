@@ -1,7 +1,7 @@
 import { EngineServer } from "./EngineServer";
 import { createRedisConnection } from "@redis-client";
-import type { RedisClientType } from "redis";
-
+import type { RedisArgument, RedisClientType } from "redis";
+import type { dbPollerPayload } from "@shared-types/src";
 export class RedisManager {
   private engineServer;
   private redisClient?: RedisClientType | null;
@@ -21,6 +21,7 @@ export class RedisManager {
 
     this.publisherClient = this.redisClient.duplicate() as RedisClientType;
     await this.publisherClient.connect();
+
     console.log("engine publisher redis client connected");
   }
 
@@ -43,7 +44,7 @@ export class RedisManager {
           BLOCK: 0, // this means wait forever untill new message arrives
         },
       );
-
+ 
       if (data) {
         for (let stream of data) {
           for (let singleMessage of stream.messages) {
@@ -53,6 +54,14 @@ export class RedisManager {
         }
       }
     }
+  }
+
+  async sendToDBPoller(payloadData:dbPollerPayload){
+    if(!payloadData){
+      return
+    }
+    const res = await this.redisClient?.XADD("send-to-engine", "*", {"data":payloadData.toString()})
+    console.log("send response to dbpoller stream...", res)
   }
 
   publish() {

@@ -4,7 +4,7 @@ export type WsRequests = SubscribeEvent | UnsubscribeEvent;
 
 export type EngineCommands = CreateOrder | CancleOrder;
 
-export type EngineEvents = depthUpdates | tradeUpdates | positionUpdates;
+export type EngineEvents = depthUpdates | tradeUpdates | positionUpdates | tickerUpdates
 
 type CreateOrder = {
     type: "cancle-order",
@@ -38,6 +38,10 @@ type tradeUpdates = {
   asks: [];
   bids: [];
 };
+type tickerUpdates = {
+    marketId: string,
+    indexPrice: number
+}
 type positionUpdates = {
   type: "position";
   side: positionType;
