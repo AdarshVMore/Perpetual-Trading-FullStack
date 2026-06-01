@@ -1,6 +1,7 @@
 import type { WsRequests } from "@shared-types/src";
 import { WebSocketServer, WebSocket } from "ws";
 import { SubcriptionManager } from "./SubscriptionManager";
+import type { initializePubSub } from "./RedisSubscriber";
 
 export class WebsocketManager {
   constructor(
@@ -43,7 +44,6 @@ export class WebsocketManager {
         console.log("created channel , ", channel);
 
         this.subscriptionManager.subscribe(channel, socket);
-        console.log("sending fake depths");
       } else if (type === "UNSUBSCRIBE") {
         const channel = this.subscriptionManager.createChannel(
           message.channel,

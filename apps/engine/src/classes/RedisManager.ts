@@ -39,4 +39,23 @@ export class RedisManager {
       }
     }, 1000);
   }
+
+  publish(){
+    setInterval(async () => {
+    const update = {
+      userId: "user123",
+      unrealizedPnL: (
+        Math.random() * 500 - 250
+      ).toFixed(2),
+      timestamp: Date.now(),
+    };
+
+    await this.redisClient?.publish(
+      "depth:BTCUSDT",
+      JSON.stringify(update)
+    );
+
+    console.log("Published:", update);
+  }, 2000);
+  }
 }
