@@ -1,6 +1,4 @@
-import { createRedisConnection } from "@redis-client";
-import { LinkList, OrderedMap } from "js-sdsl";
-import type { User, OrderBooks, Fills } from "@shared-types";
+import type { User } from "@shared-types";
 import { EngineServer } from "./classes/EngineServer";
 import { OrderBook } from "./classes/OrderBook";
 import { UserManager } from "./classes/UserManager";
@@ -30,5 +28,9 @@ const engineServer = new EngineServer(
 
 const redisManager = new RedisManager(engineServer);
 
-redisManager.connect();
-redisManager.listen();
+await redisManager.connect();
+redisManager.listen().catch((error) => {
+  console.error("Redis stream listener failed", error);
+});
+redisManager.publish();
+console.log("all redis managers are getting called");

@@ -5,22 +5,24 @@ export class initializePubSub {
   constructor(private subscriptionmanager: SubcriptionManager) {}
 
   async init() {
+    console.log("trying to connect websocket redis subscriber");
     const subscriber = await createRedisConnection();
     subscriber?.on("error", (err) => {
       console.log(err);
     });
-    await subscriber?.connect();
 
     const channelName = "depth:BTCUSDT";
 
+    console.log(`subscribing to ${channelName}`);
     await subscriber?.subscribe(channelName, (message: string) => {
       const parsedData = JSON.parse(message);
       const sockets = this.subscriptionmanager.getSubscribers(channelName);
       if (!sockets) {
-        throw new Error("no sockets for this channel to send pubSub messages");
+        console.log("received pubsub message, but no sockets are subscribed");
+        return;
       }
       for (let socket of sockets) {
-        socket.send(parsedData);
+        socket.send(JSON.stringify(parsedData));
       }
       console.log("subscribed to channel and recieved this data", parsedData);
     });

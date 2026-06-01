@@ -4,13 +4,13 @@ import { initializePubSub } from "./RedisSubscriber";
 
 import { WebSocketServer } from "ws";
 
-const ws = new WebSocketServer({port: 8080})
+const ws = new WebSocketServer({ port: 8080 });
 
-const subscriptionManager = new SubcriptionManager()
-const initializePubsub = new initializePubSub(subscriptionManager)
+const subscriptionManager = new SubcriptionManager();
+const initializePubsub = new initializePubSub(subscriptionManager);
 
-initializePubsub.init()
+await initializePubsub.init();
 
-new WebsocketManager(ws, subscriptionManager)
+new WebsocketManager(ws, subscriptionManager);
 
-console.log("started wbsocket connection at 8080")
+console.log("started wbsocket connection at 8080");
