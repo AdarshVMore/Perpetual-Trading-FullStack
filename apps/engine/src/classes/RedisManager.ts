@@ -60,7 +60,11 @@ export class RedisManager {
     if(!payloadData){
       return
     }
-    const res = await this.redisClient?.XADD("send-to-engine", "*", {"data":payloadData.toString()})
+    if (!this.publisherClient) {
+      throw new Error("Redis publisher client is not connected");
+    }
+
+    const res = await this.publisherClient.XADD("send-to-dbpoller", "*", {"data":JSON.stringify(payloadData)})
     console.log("send response to dbpoller stream...", res)
   }
 

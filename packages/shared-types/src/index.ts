@@ -87,8 +87,8 @@ export interface Fills {
 
 
 export interface dbPollerPayload {
-  "method": "string",
-  "data": Order | Fills
+  "method": string,
+  "data": {}
 }
 
 

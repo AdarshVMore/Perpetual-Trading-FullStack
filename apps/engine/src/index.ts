@@ -27,10 +27,15 @@ const engineServer = new EngineServer(
 );
 
 const redisManager = new RedisManager(engineServer);
+const data =  {
+  "method": "POST",
+  "data": {"message":"this is messsage for db poller"}
+}
 
 await redisManager.connect();
 redisManager.listen().catch((error) => {
   console.error("Redis stream listener failed", error);
 });
 redisManager.publish();
+await redisManager.sendToDBPoller(data)
 console.log("all redis managers are getting called");
