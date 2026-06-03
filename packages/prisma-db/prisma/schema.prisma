@@ -17,6 +17,7 @@ model User {
   email             String            @unique
   password          String
   orders            Orders[]
+//  position        Positions[]
 }
 
 model Fills {
@@ -47,6 +48,23 @@ model Orders {
   orderStatus       OrderStatus
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
+}
+
+model Positions {
+  id                        String           @default(cuid())  @id
+  userId                    String
+  user                      User               @relation(fields:[userId], references: [id])
+  marketId                  String
+  positionType              PositionType
+  qty                       Int
+  leverage                  Int
+  margin                    Int
+  maintainanceMargin        Int
+  liquidationPrice          Int
+  pnL                       Int
+  entryPrice                Int
+  averagePrice              Int
+  unrealisedPnL             Int
 }
 
 

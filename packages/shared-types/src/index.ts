@@ -5,6 +5,7 @@ import {LinkList, OrderedMap} from "js-sdsl"
 export type positionType = 'LONG' | 'SHORT' ;
 export type marketType = "MARKET" | "LIMIT"
 export type orderStatus = "OPEN" | "FILLED" | "PARTIAL_FILLED" | "CANCLE"
+export type dbPollerEvent = "OrderUpdate" | "TradeExecuted" | "FillsCreated" | "PositionUpdated"
 
 // ====================================================  USERS   =========================================================
 
@@ -86,10 +87,18 @@ export interface Fills {
 // ====================================================  DBPoller =======================================================
 
 
+export interface dpPollerEvents {
+  type: dbPollerEvent,
+  payload: dbPollerPayload
+}
+
 export interface dbPollerPayload {
-  "method": string,
+  "method": "POST" | "PUT",
   "data": {}
 }
+
+// ====================================================  Zod =======================================================
+
 
 
 export {
