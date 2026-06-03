@@ -5,14 +5,20 @@ import type { LinkList } from "js-sdsl";
 import type { PositionManager } from "./PositionManager";
 import type { RiskManager } from "./RiskManager";
 import type { PositionType } from "@prisma-db/generated/prisma/enums";
+import { DBPoller } from "./DBPollerManager";
 
 export class MatchingEngine {
+  private dbpoller?:DBPoller
   constructor(
     private orderBook: OrderBook,
     private fillsManager: FillManager,
     private positionManager: PositionManager,
     private riskManager: RiskManager,
   ) {}
+
+  setDBPoller(dbpoller:DBPoller){
+    this.dbpoller = dbpoller
+  }
 
   matchOrder(order: Order) {
     const book = this.orderBook.getBook(order.marketId);

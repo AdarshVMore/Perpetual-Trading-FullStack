@@ -1,11 +1,11 @@
 import { EngineServer } from "./EngineServer";
 import { createRedisConnection } from "@redis-client";
 import type { RedisArgument, RedisClientType } from "redis";
-import type { dbPollerPayload } from "@shared-types/src";
+import type { dbPollerEvents, dbPollerPayload } from "@shared-types/src";
 export class RedisManager {
   private engineServer;
   private redisClient?: RedisClientType | null;
-  private publisherClient?: RedisClientType | null;
+  public publisherClient?: RedisClientType | null;
 
   constructor(engineServer: EngineServer) {
     this.engineServer = engineServer;
@@ -56,18 +56,6 @@ export class RedisManager {
     }
   }
 
-  async sendToDBPoller(payloadData:dbPollerPayload){
-    if(!payloadData){
-      return
-    }
-    if (!this.publisherClient) {
-      throw new Error("Redis publisher client is not connected");
-    }
-
-    const res = await this.publisherClient.XADD("send-to-dbpoller", "*", {"data":JSON.stringify(payloadData)})
-    console.log("send response to dbpoller stream...", res)
-  }
-
   publish() {
     if (!this.publisherClient) {
       throw new Error("Redis publisher client is not connected");
@@ -88,5 +76,13 @@ export class RedisManager {
 
       console.log("Published:", update);
     }, 2000);
+  }
+
+  getPublisherClient(){
+    if(!this.publisherClient){
+      throw new Error("")
+    }
+
+    return this.publisherClient
   }
 }

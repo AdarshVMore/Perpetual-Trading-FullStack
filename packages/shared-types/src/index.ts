@@ -87,14 +87,14 @@ export interface Fills {
 // ====================================================  DBPoller =======================================================
 
 
-export interface dpPollerEvents {
+export interface dbPollerEvents {
   type: dbPollerEvent,
   payload: dbPollerPayload
 }
 
 export interface dbPollerPayload {
-  "method": "POST" | "PUT",
-  "data": {}
+  method: "POST" | "PUT",
+  data: {}
 }
 
 // ====================================================  Zod =======================================================
