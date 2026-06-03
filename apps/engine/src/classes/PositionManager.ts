@@ -1,15 +1,23 @@
 import type { UserPositions } from "@shared-types";
 import type { RiskManager } from "./RiskManager";
 import type { UserManager } from "./UserManager";
+import type { DBPoller } from "./DBPollerManager";
 
 export class PositionManager {
     public allPositions: Map<string, UserPositions[]> // marketId => positions
+    private dbpoller?:DBPoller
   constructor(
     private riskManager: RiskManager,
     private userManager: UserManager,
   ) {
     this.allPositions = new Map()
   }
+
+  
+  setDBPoller(dbpoller:DBPoller){
+    this.dbpoller = dbpoller
+  }
+
 
   getPosition(userId: string, marketId: string) {
     const positions = this.userManager.getPositiotns(userId);
