@@ -1,5 +1,6 @@
 console.log("Hello via Bun!");
 import { createRedisConnection } from "@redis-client";
+import { AppendData } from "./AppendData";
 
 const redisClient = await createRedisConnection();
 let lastMessageId = "0";
@@ -25,7 +26,8 @@ while (true) {
           throw new Error("no data recieved");
         }
         const payload = JSON.parse(singleMessage.message.data);
-        console.log("data from db poller stream", payload);
+        const appendData = new AppendData(payload)
+        appendData.manipulateDB()
       }
     }
   }

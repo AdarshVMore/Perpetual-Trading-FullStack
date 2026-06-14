@@ -1,4 +1,11 @@
-import type { dbPollerEvents, Order, positionType } from "@shared-types";
+import type {
+  dbPollerEvents,
+  Fills,
+  Order,
+  positionType,
+  User,
+  UserPositions,
+} from "@shared-types";
 import type { FillManager } from "./FillManager";
 import type { OrderBook } from "./OrderBook";
 import type { LinkList } from "js-sdsl";
@@ -7,7 +14,7 @@ import type { RiskManager } from "./RiskManager";
 import { DBPoller } from "./DBPollerManager";
 
 export class MatchingEngine {
-  private dbpoller?:DBPoller
+  private dbpoller?: DBPoller;
   constructor(
     private orderBook: OrderBook,
     private fillsManager: FillManager,
@@ -15,30 +22,30 @@ export class MatchingEngine {
     private riskManager: RiskManager,
   ) {}
 
-  setDBPoller(dbpoller:DBPoller){
-    this.dbpoller = dbpoller
+  setDBPoller(dbpoller: DBPoller) {
+    this.dbpoller = dbpoller;
   }
 
   matchOrder(order: Order) {
     const book = this.orderBook.getBook(order.marketId);
-    const createDBPollerOrderCreatedObject:dbPollerEvents= {
+    const createDBPollerOrderCreatedObject: dbPollerEvents = {
       type: "OrderUpdate",
-      payload:{method:"POST", data: order}
-    }
-    this.dbpoller?.sendToDBPoller(createDBPollerOrderCreatedObject)
-    this.dbpoller
-    const response:any = {
-        orderId: order.orderId,
-        status: "",
-        fills: [],
-        remainingQuantity: order.qty,
-        cancelledQuantity: 0,
-        margin: {
-          locked: 0,
-          used: 0,
-          released: 0,
-        },
-      };
+      payload: { method: "POST", data: order },
+    };
+    this.dbpoller?.sendToDBPoller(createDBPollerOrderCreatedObject);
+    this.dbpoller;
+    const response: any = {
+      orderId: order.orderId,
+      status: "",
+      fills: [],
+      remainingQuantity: order.qty,
+      cancelledQuantity: 0,
+      margin: {
+        locked: 0,
+        used: 0,
+        released: 0,
+      },
+    };
     if (!book) {
       throw new Error(`book ith ${order.marketId} does not exist`);
     }
@@ -54,23 +61,23 @@ export class MatchingEngine {
         bestPrice,
       );
 
-      response.remainingQty -= tradeQty
+      response.remainingQty -= tradeQty;
 
-      const createFillObject = {
+      const createFillObject: Fills = {
         maker: restingOrder.userId,
         taker: order.userId,
         marketId: order.marketId,
         qty: tradeQty,
         price: bestPrice,
       };
-      const createDBPollerFillObject:dbPollerEvents = {
+      const createDBPollerFillObject: dbPollerEvents = {
         type: "FillsCreated",
-        payload: { method : "POST" , data: createFillObject}
-      }
+        payload: { method: "POST", data: createFillObject },
+      };
 
       this.fillsManager.createFill(createFillObject);
-      response.fills.push(createFillObject)
-      this.dbpoller?.sendToDBPoller(createDBPollerFillObject)
+      response.fills.push(createFillObject);
+      this.dbpoller?.sendToDBPoller(createDBPollerFillObject);
 
       // Limit Order
       // Market Order
@@ -85,7 +92,7 @@ export class MatchingEngine {
         order.marketId,
       );
       const takerMargin = (tradeQty * bestPrice) / order.leverage;
-      response.margin.locked = takerMargin
+      response.margin.locked = takerMargin;
 
       const makerMargin = (tradeQty * bestPrice) / restingOrder.leverage;
 
@@ -103,7 +110,7 @@ export class MatchingEngine {
         restingOrder.leverage,
         restingOrder.positionType,
       );
-      let position = {
+      let position: UserPositions = {
         marketId: order.marketId,
         positionType: order.positionType,
         qty: tradeQty,
@@ -117,7 +124,7 @@ export class MatchingEngine {
         unrealisedPnL: 0,
       };
 
-      const makerPosition = {
+      const makerPosition: UserPositions = {
         marketId: restingOrder.marketId,
         positionType: (order.positionType === "LONG"
           ? "SHORT"
@@ -135,11 +142,14 @@ export class MatchingEngine {
 
       if (!existingPositionTaker) {
         this.positionManager.newPosition(order.userId, position);
-        const createDBPollerMakerPositionObject:dbPollerEvents= {
+        const createDBPollerMakerPositionObject: dbPollerEvents = {
           type: "PositionUpdated",
-          payload:{method:"POST", data: {userId:order.userId, position:position}}
-        }
-        this.dbpoller?.sendToDBPoller(createDBPollerMakerPositionObject)
+          payload: {
+            method: "POST",
+            data: { userId: order.userId, position: position },
+          },
+        };
+        this.dbpoller?.sendToDBPoller(createDBPollerMakerPositionObject);
       } else {
         this.positionManager.manipulatePositions(
           position,
@@ -150,11 +160,14 @@ export class MatchingEngine {
 
       if (!existingPositionMaker) {
         this.positionManager.newPosition(restingOrder.userId, makerPosition);
-        const createDBPollerTakerPositionObject:dbPollerEvents= {
+        const createDBPollerTakerPositionObject: dbPollerEvents = {
           type: "PositionUpdated",
-          payload:{method:"POST", data: {userId:restingOrder.userId, position:makerPosition}}
-        }
-        this.dbpoller?.sendToDBPoller(createDBPollerTakerPositionObject)
+          payload: {
+            method: "POST",
+            data: { userId: restingOrder.userId, position: makerPosition },
+          },
+        };
+        this.dbpoller?.sendToDBPoller(createDBPollerTakerPositionObject);
       } else
         this.positionManager.manipulatePositions(
           makerPosition,
@@ -163,13 +176,14 @@ export class MatchingEngine {
         );
     }
     if (order.remainingQty === 0) {
-      response.status = "filled"
-      const createDBPollerUpdateOrderObject:dbPollerEvents = {
+      response.status = "filled";
+      order.status = "FILLED"
+      const createDBPollerUpdateOrderObject: dbPollerEvents = {
         type: "OrderUpdate",
-        payload: {method:"PUT", data:"order"}
-      }
-      this.dbpoller?.sendToDBPoller(createDBPollerUpdateOrderObject)
-      return response
+        payload: { method: "PUT", data: order },
+      };
+      this.dbpoller?.sendToDBPoller(createDBPollerUpdateOrderObject);
+      return response;
     }
   }
 }
@@ -177,7 +191,6 @@ export class MatchingEngine {
 // makerPositions         exists           =>             => Yes   check side =>  update
 // takerPositions         may/maynot exist => No ? Add    => Yes ? check side =>  update
 // incommingPositions
-
 
 /*
   OrderUpdate

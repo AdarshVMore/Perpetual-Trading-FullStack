@@ -86,6 +86,10 @@ export interface Fills {
 
 // ====================================================  DBPoller =======================================================
 
+export interface CustomPosition {
+  userId: string,
+  position: UserPositions
+}
 
 export interface dbPollerEvents {
   type: dbPollerEvent,
@@ -94,7 +98,7 @@ export interface dbPollerEvents {
 
 export interface dbPollerPayload {
   method: "POST" | "PUT" | "DELETE",
-  data: {}
+  data: Order | CustomPosition | Fills
 }
 
 // ====================================================  Zod =======================================================

@@ -3,7 +3,7 @@ import type {Order, User} from "@shared-types"
 import prisma from "@prisma-db"
 import { UserManager } from "./UserManager"
 import type { OrderBook } from "./OrderBook"
-import type { PositionType } from "@prisma-db/generated/prisma/enums"
+import type { PositionType } from "@prisma-db"
 
 export class RiskManager{
 

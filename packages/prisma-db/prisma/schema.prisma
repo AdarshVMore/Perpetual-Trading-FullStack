@@ -5,11 +5,11 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -17,7 +17,8 @@ model User {
   email             String            @unique
   password          String
   orders            Orders[]
-//  position        Positions[]
+  fills             Fills[]
+  positions         Positions[]
 }
 
 model Fills {

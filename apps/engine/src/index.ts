@@ -40,15 +40,15 @@ const engineServer = new EngineServer(
 );
 
 const redisManager = new RedisManager(engineServer);
-const payload: dbPollerPayload = {
-  method: "POST",
-  data: { message: "this is messsage for db poller" },
-};
+// const payload: dbPollerPayload = {
+//   method: "POST",
+//   data: { message: "this is messsage for db poller" },
+// };
 
-const data: dbPollerEvents = {
-  type: "OrderUpdate",
-  payload: payload,
-};
+// const data: dbPollerEvents = {
+//   type: "OrderUpdate",
+//   payload: payload,
+// };
 
 await redisManager.connect();
 redisManager.listen().catch((error) => {
