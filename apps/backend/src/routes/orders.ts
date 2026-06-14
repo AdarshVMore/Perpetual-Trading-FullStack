@@ -23,7 +23,7 @@ console.log('name of the stream', redisStreamName)
 
 connectRedisBackend()
 routes.post("/create-order", async (req:Request, res:Response) => {
-    const result = CreateOrderSchema.safeParse(req.body) 
+    const result = CreateOrderSchema.safeParse(req.body)
     if(!result.success){
         return res.status(400).json({
             error: result.error.flatten()
@@ -43,15 +43,19 @@ routes.post("/create-order", async (req:Request, res:Response) => {
     console.log("backend redis connected")
     
     let res1
+    let reqId = Math.random()
+    const requests = []
 
     if(orderType === "MARKET"){
-        res1 = await redisClient.XADD("send-to-engine", "*", {'type':'create-order', 'userId': userId ,'qty': qty.toString(),'marketId':marketId, 'orderType': orderType, 'positionType': positionType, 'leverage': leverage.toString()}) // redis only accepts buffer | string , so cant pass numbers in redis . so added .toString() numbers
+        res1 = await redisClient.XADD("send-to-engine", "*", {reqId: req.toString(), 'type':'create-order', 'userId': userId ,'qty': qty.toString(),'marketId':marketId, 'orderType': orderType, 'positionType': positionType, 'leverage': leverage.toString()}) // redis only accepts buffer | string , so cant pass numbers in redis . so added .toString() numbers
+        requests.push({reqId: reqId.toString(), 'type':'create-order', 'userId': userId ,'qty': qty.toString(),'marketId':marketId, 'orderType': orderType, 'positionType': positionType, 'leverage': leverage.toString()})
     } else if(orderType === "LIMIT"){
-        res1 = await redisClient.XADD("send-to-engine", "*", {'type':'create-order', 'userId': userId, 'price':price.toString() ,'qty': qty.toString(), 'marketId':marketId, 'orderType': orderType, 'positionType': positionType, 'leverage': leverage.toString()})
+        res1 = await redisClient.XADD("send-to-engine", "*", {reqId: req.toString(), 'type':'create-order', 'userId': userId, 'price':price.toString() ,'qty': qty.toString(), 'marketId':marketId, 'orderType': orderType, 'positionType': positionType, 'leverage': leverage.toString()})
+        requests.push({reqId: reqId.toString(), 'type':'create-order', 'userId': userId, 'price':price.toString() ,'qty': qty.toString(), 'marketId':marketId, 'orderType': orderType, 'positionType': positionType, 'leverage': leverage.toString()})
     }
     
-    console.log("added to new-name... ",res1)
-    res.status(200).json({message: `recieved ${res1}`})
+    console.log("added to send-to-engine... ",res1)
+    res.status(200).json({message: `order Accepted here is you queue number ${res1}`})
 })
 routes.post("/cancle-order/:orderId",authUserMiddleware, (req:Request, res:Response) => {
     const result = cancleOrdersSchema.safeParse(req.params)

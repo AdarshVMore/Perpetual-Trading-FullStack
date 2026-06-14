@@ -1,10 +1,9 @@
-import type { dbPollerEvents, Order } from "@shared-types";
+import type { dbPollerEvents, Order, positionType } from "@shared-types";
 import type { FillManager } from "./FillManager";
 import type { OrderBook } from "./OrderBook";
 import type { LinkList } from "js-sdsl";
 import type { PositionManager } from "./PositionManager";
 import type { RiskManager } from "./RiskManager";
-import type { PositionType } from "@prisma-db/generated/prisma/enums";
 import { DBPoller } from "./DBPollerManager";
 
 export class MatchingEngine {
@@ -122,7 +121,7 @@ export class MatchingEngine {
         marketId: restingOrder.marketId,
         positionType: (order.positionType === "LONG"
           ? "SHORT"
-          : "LONG") as PositionType,
+          : "LONG") as positionType,
         qty: tradeQty,
         leverage: restingOrder.leverage,
         margin: makerMargin,
@@ -135,7 +134,7 @@ export class MatchingEngine {
       };
 
       if (!existingPositionTaker) {
-        this.positionManager.addPosition(order.userId, position);
+        this.positionManager.newPosition(order.userId, position);
         const createDBPollerMakerPositionObject:dbPollerEvents= {
           type: "PositionUpdated",
           payload:{method:"POST", data: {userId:order.userId, position:position}}
@@ -150,7 +149,7 @@ export class MatchingEngine {
       }
 
       if (!existingPositionMaker) {
-        this.positionManager.addPosition(restingOrder.userId, makerPosition);
+        this.positionManager.newPosition(restingOrder.userId, makerPosition);
         const createDBPollerTakerPositionObject:dbPollerEvents= {
           type: "PositionUpdated",
           payload:{method:"POST", data: {userId:restingOrder.userId, position:makerPosition}}
@@ -178,3 +177,12 @@ export class MatchingEngine {
 // makerPositions         exists           =>             => Yes   check side =>  update
 // takerPositions         may/maynot exist => No ? Add    => Yes ? check side =>  update
 // incommingPositions
+
+
+/*
+  OrderUpdate
+  FillsCreated
+  PositionUpdated
+  PositionUpdated
+  OrderUpdate
+*/

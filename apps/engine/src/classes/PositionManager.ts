@@ -1,23 +1,21 @@
-import type { UserPositions } from "@shared-types";
+import type { dbPollerEvents, UserPositions } from "@shared-types";
 import type { RiskManager } from "./RiskManager";
 import type { UserManager } from "./UserManager";
-import type { DBPoller } from "./DBPollerManager";
+import { DBPoller } from "./DBPollerManager";
 
 export class PositionManager {
-    public allPositions: Map<string, UserPositions[]> // marketId => positions
-    private dbpoller?:DBPoller
+  public allPositions: Map<string, UserPositions[]>; // marketId => positions
+  private dbpoller?: DBPoller;
   constructor(
     private riskManager: RiskManager,
     private userManager: UserManager,
   ) {
-    this.allPositions = new Map()
+    this.allPositions = new Map();
   }
 
-  
-  setDBPoller(dbpoller:DBPoller){
-    this.dbpoller = dbpoller
+  setDBPoller(dbpoller: DBPoller) {
+    this.dbpoller = dbpoller;
   }
-
 
   getPosition(userId: string, marketId: string) {
     const positions = this.userManager.getPositiotns(userId);
@@ -32,8 +30,8 @@ export class PositionManager {
     return null;
   }
 
-  getAllPositions(marketId:string) {
-    return this.allPositions.get(marketId)
+  getAllPositions(marketId: string) {
+    return this.allPositions.get(marketId);
   }
 
   manipulatePositions(
@@ -41,23 +39,41 @@ export class PositionManager {
     existingPosition: UserPositions,
     userId: string,
   ) {
+    let finalPosition:UserPositions | null = null;
     if (incommingPosition.positionType === existingPosition.positionType) {
-      this.updatePosition(incommingPosition, existingPosition);
+      finalPosition = this.addPosition(incommingPosition, existingPosition);
     }
     if (incommingPosition.positionType != existingPosition.positionType) {
       if (incommingPosition.qty > existingPosition.qty) {
-        this.reversePosition(incommingPosition, existingPosition, userId);
+        finalPosition = this.reversePosition(incommingPosition, existingPosition, userId);
       }
       if (incommingPosition.qty < existingPosition.qty) {
-        this.reducePosition(incommingPosition, existingPosition, userId);
+        finalPosition = this.reducePosition(incommingPosition, existingPosition, userId);
       }
       if (incommingPosition.qty === existingPosition.qty) {
-        this.canclePosition(incommingPosition, existingPosition, userId);
+        finalPosition = this.canclePosition(incommingPosition, existingPosition, userId);
       }
     }
+
+    if(!finalPosition){
+      throw new Error("there is no final position to send to db poller in manipulatePositions")
+    }
+    
+    if(!this.dbpoller){
+      throw new Error("there is no DBPoller to send adta to in manipulatePositions")
+    }
+
+    const createDBPollerTakerPositionObject: dbPollerEvents = {
+      type: "PositionUpdated",
+      payload: {
+        method: "PUT",
+        data: { userId: userId,  position: finalPosition },
+      },
+    };
+    this.dbpoller?.sendToDBPoller(createDBPollerTakerPositionObject);
   }
 
-  addPosition(userId: string, position: UserPositions) {
+  newPosition(userId: string, position: UserPositions) {
     const user = this.userManager.getUser(userId);
     if (!user) {
       throw new Error("user does not exist to add position");
@@ -65,7 +81,7 @@ export class PositionManager {
     user.positions.push(position);
   }
 
-  updatePosition(position: UserPositions, existingPosition: UserPositions) {
+  addPosition(position: UserPositions, existingPosition: UserPositions) {
     const currentLiquidity =
       existingPosition.averagePrice * existingPosition.qty;
     const incommingLiquidity = position.averagePrice * position.qty;
@@ -75,13 +91,15 @@ export class PositionManager {
     existingPosition.qty += position.qty;
     existingPosition.averagePrice = totalAvgPrice;
     existingPosition.margin += position.margin;
+
+    return existingPosition
   }
 
   reducePosition(
     position: UserPositions,
     existingPosition: UserPositions,
     userId: string,
-  ) {
+  ):UserPositions {
     let pnl =
       position.qty * (position.averagePrice - existingPosition.averagePrice);
     if (existingPosition.positionType === "LONG") {
@@ -103,13 +121,14 @@ export class PositionManager {
     user.collateral.availabe += pnl + unlockMargin;
     user.collateral.locked -= unlockMargin;
 
+    return existingPosition
   }
 
   canclePosition(
     position: UserPositions,
     existingPosition: UserPositions,
     userId: string,
-  ) {
+  ):UserPositions {
     let PnL = 0;
     if (existingPosition.positionType === "LONG") {
       PnL = (position.entryPrice - existingPosition.entryPrice) * position.qty;
@@ -132,20 +151,21 @@ export class PositionManager {
         break;
       }
     }
+
+    return existingPosition
   }
 
   reversePosition(
     position: UserPositions,
     existingPosition: UserPositions,
     userId: string,
-  ) {
+  ):UserPositions {
     let PnL = 0;
     const user = this.userManager.getUser(userId);
     if (existingPosition.positionType === "LONG") {
       PnL =
         (existingPosition.averagePrice - position.averagePrice) * position.qty;
-    } else 
-    if (existingPosition.positionType === "SHORT") {
+    } else if (existingPosition.positionType === "SHORT") {
       PnL =
         (position.averagePrice - existingPosition.averagePrice) * position.qty;
     }
@@ -158,6 +178,7 @@ export class PositionManager {
       throw new Error("user not found in reverse Position");
     }
     user.collateral.availabe += PnL;
+    return existingPosition
   }
 }
 
