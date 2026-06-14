@@ -93,7 +93,7 @@ export interface dbPollerEvents {
 }
 
 export interface dbPollerPayload {
-  method: "POST" | "PUT",
+  method: "POST" | "PUT" | "DELETE",
   data: {}
 }
 

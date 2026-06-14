@@ -40,6 +40,7 @@ export class PositionManager {
     userId: string,
   ) {
     let finalPosition:UserPositions | null = null;
+    let isCancle = false
     if (incommingPosition.positionType === existingPosition.positionType) {
       finalPosition = this.addPosition(incommingPosition, existingPosition);
     }
@@ -52,6 +53,7 @@ export class PositionManager {
       }
       if (incommingPosition.qty === existingPosition.qty) {
         finalPosition = this.canclePosition(incommingPosition, existingPosition, userId);
+        isCancle = true
       }
     }
 
@@ -66,7 +68,7 @@ export class PositionManager {
     const createDBPollerTakerPositionObject: dbPollerEvents = {
       type: "PositionUpdated",
       payload: {
-        method: "PUT",
+        method: isCancle ? "DELETE" : "PUT",
         data: { userId: userId,  position: finalPosition },
       },
     };
