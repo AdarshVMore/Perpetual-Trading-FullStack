@@ -1,62 +1,79 @@
-import WebSocket from "ws"
+import WebSocket from "ws";
 
 export class SubcriptionManager {
-    private socketToChannel = new Map<WebSocket,Set<string>>()
-    private channelToSocket = new Map<string,Set<WebSocket>>()
+  private socketToChannel = new Map<WebSocket, Set<string>>();
+  private channelToSocket = new Map<string, Set<WebSocket>>();
 
-    subscribe(channel:string, socket:WebSocket){
-        console.log("caling subscribe")
-        if(!this.socketToChannel.has(socket)){
-            this.socketToChannel.set(socket, new Set())
-        }
-
-        this.socketToChannel.get(socket)?.add(channel)
-
-        if(!this.channelToSocket.has(channel)){
-            this.channelToSocket.set(channel, new Set())
-        }
-
-        this.channelToSocket.get(channel)?.add(socket)
-        // const x = this.channelToSocket.get(channel)
-        // if(!x){
-        //     console.log("not x")
-        //     return
-        // }
-        // for(let y of x ){
-        //     console.log("these are the sockets", x)
-        // }
-
-
-        console.log("Subscribed to ", channel)
+  subscribe(channel: string, socket: WebSocket) {
+    if (!this.socketToChannel.has(socket)) {
+      this.socketToChannel.set(socket, new Set());
     }
 
-    removeSocket(socket:WebSocket){
-        console.log("remove socket")
+    this.socketToChannel.get(socket)?.add(channel);
 
-        const channels = this.socketToChannel.get(socket)
-
-        if(!channels){
-            throw new Error("no channels for this socket")
-        }
-        for(let channel of channels){
-            this.channelToSocket.get(channel)?.delete(socket)
-        }
-
-        this.socketToChannel.delete(socket)
+    if (!this.channelToSocket.has(channel)) {
+      this.channelToSocket.set(channel, new Set());
     }
 
-    createChannel(channel:string,market:String){
-        return `${channel}:${market}`
+    this.channelToSocket.get(channel)?.add(socket);
+    console.log("subscribed to", channel);
+  }
+
+  removeSocket(socket: WebSocket) {
+    const channels = this.socketToChannel.get(socket);
+    if (!channels) {
+      return [];
     }
 
-    unsubscribeChannel(channel:string, socket:WebSocket){
-        this.channelToSocket.get(channel)?.delete(socket)
-        this.socketToChannel.get(socket)?.delete(channel)
-
-        console.log("unsubscribed")
+    const emptiedChannels: string[] = [];
+    for (const channel of channels) {
+      if (this.removeSocketFromChannel(channel, socket)) {
+        emptiedChannels.push(channel);
+      }
     }
 
-    getSubscribers(channel:string){
-        return this.channelToSocket.get(channel)
+    this.socketToChannel.delete(socket);
+    return emptiedChannels;
+  }
+
+  createChannel(channel: string, market: string) {
+    return `${channel}:${market}`;
+  }
+
+  unsubscribeChannel(channel: string, socket: WebSocket) {
+    this.socketToChannel.get(socket)?.delete(channel);
+
+    if (this.socketToChannel.get(socket)?.size === 0) {
+      this.socketToChannel.delete(socket);
     }
+
+    const channelIsEmpty = this.removeSocketFromChannel(channel, socket);
+    console.log("unsubscribed from", channel);
+
+    return channelIsEmpty;
+  }
+
+  getSubscribers(channel: string) {
+    return this.channelToSocket.get(channel);
+  }
+
+  hasSubscribers(channel: string) {
+    return (this.channelToSocket.get(channel)?.size ?? 0) > 0;
+  }
+
+  private removeSocketFromChannel(channel: string, socket: WebSocket) {
+    const sockets = this.channelToSocket.get(channel);
+    if (!sockets) {
+      return false;
+    }
+
+    sockets.delete(socket);
+
+    if (sockets.size > 0) {
+      return false;
+    }
+
+    this.channelToSocket.delete(channel);
+    return true;
+  }
 }
