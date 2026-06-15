@@ -11,6 +11,6 @@ const initializePubsub = new initializePubSub(subscriptionManager);
 
 await initializePubsub.init();
 
-new WebsocketManager(ws, subscriptionManager);
+new WebsocketManager(ws, subscriptionManager, initializePubsub);
 
 console.log("started wbsocket connection at 8080");
