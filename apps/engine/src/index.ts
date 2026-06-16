@@ -13,6 +13,8 @@ import { PositionManager } from "./classes/PositionManager";
 import { MatchingEngine } from "./classes/MatchingEngine";
 import { RedisManager } from "./classes/RedisManager";
 import { DBPoller } from "./classes/DBPollerManager";
+import { LiquidationManager } from "./classes/LiquidationManager";
+
 import db from "../../../packages/prisma-db";
 const users = new Map<string, User>();
 const userIds: string[] = [];
@@ -23,6 +25,7 @@ const userManager = new UserManager(users, userIds);
 const riskManager = new RiskManager(userManager, orderBook);
 const fillManager = new FillManager();
 const positionManager = new PositionManager(riskManager, userManager);
+
 const matchingEngine = new MatchingEngine(
   orderBook,
   fillManager,
@@ -39,7 +42,10 @@ const engineServer = new EngineServer(
   fillManager,
 );
 
-const redisManager = new RedisManager(engineServer);
+const liquidationManager = new LiquidationManager(userManager, engineServer)
+
+
+const redisManager = new RedisManager(engineServer, liquidationManager);
 // const payload: dbPollerPayload = {
 //   method: "POST",
 //   data: { message: "this is messsage for db poller" },
