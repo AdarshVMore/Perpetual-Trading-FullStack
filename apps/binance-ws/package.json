@@ -1,0 +1,22 @@
+{
+  "name": "binance-ws",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "scripts": {
+    "dev": "bun --watch src/index.ts"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+        "@prisma-db": "workspace:*",
+    "@redis-client": "workspace:*",
+    "@shared-types": "workspace:*",
+    "@types/ws": "^8.18.1",
+    "ws": "^8.21.0"
+  }
+}
