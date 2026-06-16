@@ -1,3 +1,8 @@
+# Current System Architecture Design
+<img width="1371" height="640" alt="image" src="https://github.com/user-attachments/assets/ed3efa78-aa82-4e83-8ff0-49584c51f3ad" />
+
+
+
 # Turborepo starter
 
 This Turborepo starter is maintained by the Turborepo core team.
