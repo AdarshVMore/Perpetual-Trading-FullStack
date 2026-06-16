@@ -254,3 +254,17 @@ Watch it again and after that , BlindFold Coding and revising
 - now Unscbscribe means deleting the socket and channel from both
 - we using redis PubSub sending his channelName, he getSubscribers() from channelName => recieved all sockets he wants to send
   message to all the sockets for that channel => message comes from Engine and gets sent
+
+
+
+
+## after completing the ws connections trying to imagine all the things done
+
+so there are 
+1 websockets [user browser <-> ws-server ] 
+1 pubsus [ engine -> ws-server ]
+
+1 websocket [ ws-binance <-> binance-API] (incomming index price updates only) //needs to send to Engine for Liquidation + unrealisedPnL calculation || sending 
+
+1 stream [ backend -> engine ]
+1 stream [ engine -> DBPoller ]

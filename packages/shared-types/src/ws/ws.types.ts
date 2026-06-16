@@ -4,13 +4,17 @@ export type WsRequests = SubscribeEvent | UnsubscribeEvent;
 
 export type EngineCommands = CreateOrder | CancleOrder;
 
-export type EngineEvents = depthUpdates | tradeUpdates | positionUpdates | tickerUpdates
+export type EngineEvents =
+  | depthUpdates
+  | tradeUpdates
+  | positionUpdates
+  | tickerUpdates;
 
 type CreateOrder = {
-    type: "cancle-order",
-    orderId: string,
-    userId: string,
-    marketId: string
+  type: "cancle-order";
+  orderId: string;
+  userId: string;
+  marketId: string;
 };
 type CancleOrder = {
   type: "create-order";
@@ -39,9 +43,10 @@ type tradeUpdates = {
   bids: [];
 };
 type tickerUpdates = {
-    marketId: string,
-    indexPrice: number
-}
+  type: "ticker";
+  marketId: string;
+  indexPrice: number;
+};
 type positionUpdates = {
   type: "position";
   side: positionType;
@@ -63,5 +68,4 @@ type UnsubscribeEvent = {
   type: "UNSUBSCRIBE";
   channel: "depth" | "trade" | "position";
   market: string;
-
 };
