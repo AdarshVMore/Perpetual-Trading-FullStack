@@ -33,6 +33,7 @@ const matchingEngine = new MatchingEngine(
   fillManager,
   positionManager,
   riskManager,
+  redisManager,
 );
 
 const engineServer = new EngineServer(

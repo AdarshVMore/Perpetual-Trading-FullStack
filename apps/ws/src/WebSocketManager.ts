@@ -41,6 +41,7 @@ export class WebsocketManager {
         const channel = this.subscriptionManager.createChannel(
           message.channel,
           message.market,
+          message.userId,
         );
         console.log("created channel , ", channel);
 
