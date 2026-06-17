@@ -120,4 +120,41 @@ export class OrderBook {
   }
 
   deleteOrder() {}
+
+  getDepth(marketId: string, depth: number = 10) {
+    const book = this.orderBooks[marketId];
+    if (!book) return { asks: [] as [number, number][], bids: [] as [number, number][] };
+
+    const asks: [number, number][] = [];
+    const bids: [number, number][] = [];
+
+    let it = book.asks.begin();
+    let count = 0;
+    while (!it.equals(book.asks.end()) && count < depth) {
+      const price = it.pointer[0];
+      const queue = it.pointer[1];
+      let totalQty = 0;
+      queue.forEach((order: Order) => { totalQty += order.remainingQty; });
+      asks.push([price, totalQty]);
+      it = it.next();
+      count++;
+    }
+
+    const tempBids: [number, number][] = [];
+    it = book.bids.begin();
+    while (!it.equals(book.bids.end())) {
+      const price = it.pointer[0];
+      const queue = it.pointer[1];
+      let totalQty = 0;
+      queue.forEach((order: Order) => { totalQty += order.remainingQty; });
+      tempBids.push([price, totalQty]);
+      it = it.next();
+    }
+    for (let i = tempBids.length - 1; i >= 0 && bids.length < depth; i--) {
+      const bid = tempBids[i];
+      if (bid) bids.push(bid);
+    }
+
+    return { asks, bids };
+  }
 }

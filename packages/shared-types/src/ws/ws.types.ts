@@ -8,7 +8,8 @@ export type EngineEvents =
   | depthUpdates
   | tradeUpdates
   | positionUpdates
-  | tickerUpdates;
+  | tickerUpdates
+  | orderUpdates;
 
 type CreateOrder = {
   type: "cancle-order";
@@ -33,39 +34,55 @@ type CancleOrder = {
 export type depthUpdates = {
   type: "depth";
   market: string;
-  asks: [];
-  bids: [];
+  asks: [number, number][];
+  bids: [number, number][];
 };
 export type tradeUpdates = {
   type: "trades";
-  market: string;
-  asks: [];
-  bids: [];
+  marketId: string;
+  price: number;
+  qty: number;
+  maker: string;
+  taker: string;
+  timestamp: number;
 };
 export type tickerUpdates = {
   type: "ticker";
   marketId: string;
   indexPrice: number;
+  markPrice?: number;
+  fundingRate?: number;
 };
 export type positionUpdates = {
   type: "position";
   side: positionType;
-  // marketType: marketType;
   marketId: string;
   price: number;
   qty: number;
   pnl: number;
   realisedPnL: number;
-  // status: orderStatus;
+};
+export type orderUpdates = {
+  type: "orderCreate" | "orderUpdate";
+  orderId: string;
+  userId: string;
+  marketId: string;
+  positionType: positionType;
+  price: number;
+  qty: number;
+  remainingQty: number;
+  leverage: number;
+  status: orderStatus;
 };
 
 type SubscribeEvent = {
   type: "SUBSCRIBE";
-  channel: "depth" | "trade" | "position";
+  channel: "depth" | "trade" | "position" | "ticker" | "order";
   market: string;
+  userId?: string;
 };
 type UnsubscribeEvent = {
   type: "UNSUBSCRIBE";
-  channel: "depth" | "trade" | "position";
+  channel: "depth" | "trade" | "position" | "ticker" | "order";
   market: string;
 };
