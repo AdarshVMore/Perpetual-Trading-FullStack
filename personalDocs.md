@@ -274,5 +274,9 @@ how is this so 1 redis connection, duplicate connection, pubsub connection , etc
 
 
 ## Trigger and Actions
-1. positionUpdate => when a fill is happened and makers/takers position is updated
-2. tradeUpdate => 
+1. OrderCreate
+2. positionUpdate => when a fill is happened and makers/takers position is updated
+3. tradeUpdate => 
+4. OrderUpdate
+5. tickerUpdate
+6. any other update remained
