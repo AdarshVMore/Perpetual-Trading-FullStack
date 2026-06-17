@@ -2,14 +2,23 @@ import { UserManager } from "./UserManager";
 import { PositionManager } from "./PositionManager";
 import type { Order } from "@shared-types";
 import type { EngineServer } from "./EngineServer";
+import type { RedisManager } from "./RedisManager";
 
 export class LiquidationManager {
   constructor(
     private userManager: UserManager,
     private engineServe: EngineServer,
+    private redisManager:RedisManager
   ) {}
 
+  async init(){
+    await this.redisManager.listenToBinanceWS(({marketId, indexPrice})=>{
+      this.start(marketId, indexPrice)
+    })
+  }
+
   start(marketId: string, indexPrice: number) {
+    
     const users = this.userManager.userIds;
     for (let user of users) {
       let userData = this.userManager.getUser(user);
@@ -19,7 +28,7 @@ export class LiquidationManager {
       for (let position of userData?.positions) {
         if (position.marketId === marketId) {
           if (
-            indexPrice <= position.liquidationPrice &&
+            Number(indexPrice) <= position.liquidationPrice &&
             position.positionType === "LONG"
           ) {
             const order = this.autoLiquiadte(user, marketId);
@@ -27,7 +36,7 @@ export class LiquidationManager {
           }
           if (
             position.positionType === "SHORT" &&
-            indexPrice >= position.liquidationPrice
+            Number(indexPrice) >= position.liquidationPrice
           ) {
             const order = this.autoLiquiadte(user, marketId);
             this.engineServe.createOrder(order);

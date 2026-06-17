@@ -261,10 +261,13 @@ Watch it again and after that , BlindFold Coding and revising
 ## after completing the ws connections trying to imagine all the things done
 
 so there are 
-1 websockets [user browser <-> ws-server ] 
-1 pubsus [ engine -> ws-server ]
+1 websocket [ user browser <-> ws-server ] 
+1 pubsub [ engine -> ws-server ] (send channelName & positionUpdate + tradeUpdate + depthUpdate + tickerUpdate)
 
-1 websocket [ ws-binance <-> binance-API] (incomming index price updates only) //needs to send to Engine for Liquidation + unrealisedPnL calculation || sending 
+1 websocket [ ws-binance <-> binance-API] (incomming index price updates only) //needs to send to Engine for Liquidation + unrealisedPnL calculation || sending ticker updates || calculate funding rate
 
 1 stream [ backend -> engine ]
 1 stream [ engine -> DBPoller ]
+
+# question
+how is this so 1 redis connection, duplicate connection, pubsub connection , etc work under the hood for single redis URL ?

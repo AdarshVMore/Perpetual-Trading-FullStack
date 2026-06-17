@@ -1,20 +1,29 @@
-import type { FillManager } from "./FillManager";
 import type { MatchingEngine } from "./MatchingEngine";
-import { OrderBook } from "./OrderBook";
-import type {Order} from "@shared-types"
-import type { PositionManager } from "./PositionManager";
+import type { RedisManager } from "./RedisManager";
 import type { RiskManager } from "./RiskManager";
 import type { UserManager } from "./UserManager";
 
 export class EngineServer {
   constructor(
-    private orderBook: OrderBook,
     private matchingEngine: MatchingEngine,
     private userManager: UserManager,
-    private positionManager: PositionManager,
     private riskManager: RiskManager,
-    private fillManager: FillManager,
+    private redisManager: RedisManager,
   ) {}
+
+  async start(){
+     while (true) {
+      const message = await this.redisManager.readFromBackendServer();
+      if (message) {
+        for (let stream of message) {
+          for (let singleMessage of stream.messages) {
+            const payload = singleMessage.message;
+            this.createOrder(payload);
+          }
+        }
+      }
+    }
+  }
 
   public createOrder(data:any) {
     console.log("data recieved in the engine server", data)

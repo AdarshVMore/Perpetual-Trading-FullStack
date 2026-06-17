@@ -1,21 +1,9 @@
-import { EngineServer } from "./EngineServer";
 import { createRedisConnection } from "@redis-client";
-import type { RedisArgument, RedisClientType } from "redis";
-import type { dbPollerEvents, dbPollerPayload } from "@shared-types/src";
-import { LiquidationManager } from "./LiquidationManager";
+import type { RedisClientType } from "redis";
+import type { EngineEvents } from "@shared-types/src";
 export class RedisManager {
-  private engineServer;
-  private liquidationManager;
   private redisClient?: RedisClientType | null;
   public publisherClient?: RedisClientType | null;
-
-  constructor(
-    engineServer: EngineServer,
-    liquidationManager: LiquidationManager,
-  ) {
-    this.engineServer = engineServer;
-    this.liquidationManager = liquidationManager;
-  }
 
   async connect() {
     console.log("trying to connect engine redis client");
@@ -31,60 +19,30 @@ export class RedisManager {
     console.log("engine publisher redis client connected");
   }
 
-  async listen() {
+  async listenToBinanceWS(callBack:((data: {marketId:string, indexPrice:number})=> void)):Promise<void> {
     if (!this.redisClient) {
       throw new Error("Redis client is not connected");
     }
 
     console.log("trying to listen for engine stream messages");
 
-    await this.redisClient.subscribe("binance-markprices", (data: any) => {
-      this.liquidationManager.start(data.s, data.p);
+    await this.redisClient.subscribe("binance-markprices", (data: string) => {
+      const parsed = JSON.parse(data);
+      callBack({ marketId: parsed.s, indexPrice: Number(parsed.p) })
     });
-
-    while (true) {
-      const data = await this.redisClient?.xRead(
-        [
-          {
-            key: "send-to-engine",
-            id: "$", // "$" means listen to new messages
-          },
-        ],
-        {
-          BLOCK: 0, // this means wait forever untill new message arrives
-        },
-      );
-
-      if (data) {
-        for (let stream of data) {
-          for (let singleMessage of stream.messages) {
-            const payload = singleMessage.message;
-            this.engineServer.createOrder(payload);
-          }
-        }
-      }
-    }
+    return 
   }
 
-  publish() {
+
+  async publish(channel:string, data:EngineEvents) {
     if (!this.publisherClient) {
       throw new Error("Redis publisher client is not connected");
     }
     // we are sending this to ws server => we need to send depthUpdates | tradeUpdates | positionUpdates | tickerUpdates
 
     console.log("trying to publish");
-    setInterval(async () => {
-      // const update = {
-      //   userId: "user123",
-      //   unrealizedPnL: (Math.random() * 500 - 250).toFixed(2),
-      //   timestamp: Date.now(),
-      // };
-      // await this.publisherClient?.publish(
-      //   "depth:BTCUSDT",
-      //   JSON.stringify(update),
-      // );
-      // console.log("Published:", update);
-    }, 2000);
+    await this.publisherClient.publish(channel, JSON.stringify(data));
+    console.log("Published:", data, " to ", channel);
   }
 
   getPublisherClient() {
@@ -93,5 +51,21 @@ export class RedisManager {
     }
 
     return this.publisherClient;
+  }
+
+  async readFromBackendServer(){
+    const data = await this.redisClient?.xRead([{key: "send-to-engine", id: "$" }], {BLOCK: 0})
+    return data
+  }
+  
+  createChannel(channel: string, market: string, userId?: string) {
+    if (channel === "position") {
+      if (!userId) {
+        throw new Error("userId is required for position channels");
+      }
+      return `${channel}:${userId}:${market}`;
+    }
+
+    return `${channel}:${market}`;
   }
 }

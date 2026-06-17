@@ -30,33 +30,33 @@ type CancleOrder = {
   remainingQty: number;
 };
 
-type depthUpdates = {
+export type depthUpdates = {
   type: "depth";
   market: string;
   asks: [];
   bids: [];
 };
-type tradeUpdates = {
+export type tradeUpdates = {
   type: "trades";
   market: string;
   asks: [];
   bids: [];
 };
-type tickerUpdates = {
+export type tickerUpdates = {
   type: "ticker";
   marketId: string;
   indexPrice: number;
 };
-type positionUpdates = {
+export type positionUpdates = {
   type: "position";
   side: positionType;
-  marketType: marketType;
+  // marketType: marketType;
   marketId: string;
   price: number;
   qty: number;
   pnl: number;
   realisedPnL: number;
-  status: orderStatus;
+  // status: orderStatus;
 };
 
 type SubscribeEvent = {

@@ -18,13 +18,15 @@ import { LiquidationManager } from "./classes/LiquidationManager";
 import db from "../../../packages/prisma-db";
 const users = new Map<string, User>();
 const userIds: string[] = [];
-let dbPoller
+
+
+const redisManager = new RedisManager();
 
 const orderBook = new OrderBook();
 const userManager = new UserManager(users, userIds);
 const riskManager = new RiskManager(userManager, orderBook);
 const fillManager = new FillManager();
-const positionManager = new PositionManager(riskManager, userManager);
+const positionManager = new PositionManager(userManager, redisManager);
 
 const matchingEngine = new MatchingEngine(
   orderBook,
@@ -34,36 +36,24 @@ const matchingEngine = new MatchingEngine(
 );
 
 const engineServer = new EngineServer(
-  orderBook,
   matchingEngine,
   userManager,
-  positionManager,
   riskManager,
-  fillManager,
+  redisManager
 );
 
-const liquidationManager = new LiquidationManager(userManager, engineServer)
+const liquidationManager = new LiquidationManager(userManager, engineServer, redisManager)
 
-
-const redisManager = new RedisManager(engineServer, liquidationManager);
-// const payload: dbPollerPayload = {
-//   method: "POST",
-//   data: { message: "this is messsage for db poller" },
-// };
-
-// const data: dbPollerEvents = {
-//   type: "OrderUpdate",
-//   payload: payload,
-// };
 
 await redisManager.connect();
-redisManager.listen().catch((error) => {
-  console.error("Redis stream listener failed", error);
-});
-redisManager.publish();
 
-dbPoller = new DBPoller(redisManager.getPublisherClient());
+const dbPoller = new DBPoller(redisManager.getPublisherClient());
 matchingEngine.setDBPoller(dbPoller)
+positionManager.setDBPoller(dbPoller)
 
-// await redisManager.sendToDBPoller(data)
+await liquidationManager.init()
+void engineServer.start().catch((error) => {
+  console.error("engine server stopped unexpectedly", error);
+});
+
 console.log("all redis managers are getting called");
