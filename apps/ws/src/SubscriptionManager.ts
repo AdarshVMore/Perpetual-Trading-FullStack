@@ -36,7 +36,10 @@ export class SubcriptionManager {
     return emptiedChannels;
   }
 
-  createChannel(channel: string, market: string) {
+  createChannel(channel: string, market: string, userId?: string) {
+    if (channel === "position" && userId) {
+      return `${channel}:${userId}:${market}`;
+    }
     return `${channel}:${market}`;
   }
 

@@ -117,5 +117,10 @@ export {
 export type {
   WsRequests,
   EngineCommands,
-  EngineEvents
+  EngineEvents,
+  depthUpdates,
+  tradeUpdates,
+  positionUpdates,
+  tickerUpdates,
+  orderUpdates,
 } from "./ws/ws.types"
