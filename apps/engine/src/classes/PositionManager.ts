@@ -2,13 +2,15 @@ import type { dbPollerEvents, UserPositions } from "@shared-types";
 import type { RiskManager } from "./RiskManager";
 import type { UserManager } from "./UserManager";
 import { DBPoller } from "./DBPollerManager";
+import type { RedisManager } from "./RedisManager";
+import type { positionUpdates } from "@shared-types/src/ws/ws.types";
 
 export class PositionManager {
   public allPositions: Map<string, UserPositions[]>; // marketId => positions
   private dbpoller?: DBPoller;
   constructor(
-    private riskManager: RiskManager,
     private userManager: UserManager,
+    private redisManager: RedisManager,
   ) {
     this.allPositions = new Map();
   }
@@ -39,40 +41,57 @@ export class PositionManager {
     existingPosition: UserPositions,
     userId: string,
   ) {
-    let finalPosition:UserPositions | null = null;
-    let isCancle = false
+    let finalPosition: UserPositions | null = null;
+    let isCancle = false;
     if (incommingPosition.positionType === existingPosition.positionType) {
       finalPosition = this.addPosition(incommingPosition, existingPosition);
     }
     if (incommingPosition.positionType != existingPosition.positionType) {
       if (incommingPosition.qty > existingPosition.qty) {
-        finalPosition = this.reversePosition(incommingPosition, existingPosition, userId);
+        finalPosition = this.reversePosition(
+          incommingPosition,
+          existingPosition,
+          userId,
+        );
       }
       if (incommingPosition.qty < existingPosition.qty) {
-        finalPosition = this.reducePosition(incommingPosition, existingPosition, userId);
+        finalPosition = this.reducePosition(
+          incommingPosition,
+          existingPosition,
+          userId,
+        );
       }
       if (incommingPosition.qty === existingPosition.qty) {
-        finalPosition = this.canclePosition(incommingPosition, existingPosition, userId);
-        isCancle = true
+        finalPosition = this.canclePosition(
+          incommingPosition,
+          existingPosition,
+          userId,
+        );
+        isCancle = true;
       }
     }
 
-    if(!finalPosition){
-      throw new Error("there is no final position to send to db poller in manipulatePositions")
+    if (!finalPosition) {
+      throw new Error(
+        "there is no final position to send to db poller in manipulatePositions",
+      );
     }
-    
-    if(!this.dbpoller){
-      throw new Error("there is no DBPoller to send adta to in manipulatePositions")
+
+    if (!this.dbpoller) {
+      throw new Error(
+        "there is no DBPoller to send adta to in manipulatePositions",
+      );
     }
 
     const createDBPollerTakerPositionObject: dbPollerEvents = {
       type: "PositionUpdated",
       payload: {
         method: isCancle ? "DELETE" : "PUT",
-        data: { userId: userId,  position: finalPosition },
+        data: { userId: userId, position: finalPosition },
       },
     };
     this.dbpoller?.sendToDBPoller(createDBPollerTakerPositionObject);
+    this.publishPositionUpdate(userId, finalPosition);
   }
 
   newPosition(userId: string, position: UserPositions) {
@@ -81,6 +100,7 @@ export class PositionManager {
       throw new Error("user does not exist to add position");
     }
     user.positions.push(position);
+    this.publishPositionUpdate(userId, position);
   }
 
   addPosition(position: UserPositions, existingPosition: UserPositions) {
@@ -94,14 +114,14 @@ export class PositionManager {
     existingPosition.averagePrice = totalAvgPrice;
     existingPosition.margin += position.margin;
 
-    return existingPosition
+    return existingPosition;
   }
 
   reducePosition(
     position: UserPositions,
     existingPosition: UserPositions,
     userId: string,
-  ):UserPositions {
+  ): UserPositions {
     let pnl =
       position.qty * (position.averagePrice - existingPosition.averagePrice);
     if (existingPosition.positionType === "LONG") {
@@ -111,26 +131,27 @@ export class PositionManager {
       pnl =
         position.qty * (existingPosition.averagePrice - position.averagePrice);
     }
-    existingPosition.qty -= position.qty;
-    existingPosition.pnL = pnl;
     const user = this.userManager.getUser(userId);
     if (!user) {
       throw new Error("user not found in reduce Position");
     }
+    const existingQty = existingPosition.qty;
     const unlockMargin =
-      existingPosition.margin * (position.qty / existingPosition.qty); // i have doubt here, while reducing exting qty > incomming qty . so this (existingQty/incommingQty) is the correct way and not the way around
+      existingPosition.margin * (position.qty / existingQty);
+    existingPosition.qty -= position.qty;
+    existingPosition.pnL = pnl;
     existingPosition.margin -= unlockMargin;
     user.collateral.availabe += pnl + unlockMargin;
     user.collateral.locked -= unlockMargin;
 
-    return existingPosition
+    return existingPosition;
   }
 
   canclePosition(
     position: UserPositions,
     existingPosition: UserPositions,
     userId: string,
-  ):UserPositions {
+  ): UserPositions {
     let PnL = 0;
     if (existingPosition.positionType === "LONG") {
       PnL = (position.entryPrice - existingPosition.entryPrice) * position.qty;
@@ -154,14 +175,14 @@ export class PositionManager {
       }
     }
 
-    return existingPosition
+    return existingPosition;
   }
 
   reversePosition(
     position: UserPositions,
     existingPosition: UserPositions,
     userId: string,
-  ):UserPositions {
+  ): UserPositions {
     let PnL = 0;
     const user = this.userManager.getUser(userId);
     if (existingPosition.positionType === "LONG") {
@@ -180,7 +201,26 @@ export class PositionManager {
       throw new Error("user not found in reverse Position");
     }
     user.collateral.availabe += PnL;
-    return existingPosition
+    return existingPosition;
+  }
+
+  private publishPositionUpdate(userId: string, position: UserPositions) {
+    const channel = this.redisManager.createChannel(
+      "position",
+      position.marketId,
+      userId,
+    );
+    const createPositionToPublish: positionUpdates = {
+      type: "position",
+      side: position.positionType,
+      marketId: position.marketId,
+      price: position.entryPrice,
+      qty: position.qty,
+      pnl: position.pnL,
+      realisedPnL: position.pnL,
+    };
+
+    void this.redisManager.publish(channel, createPositionToPublish);
   }
 }
 
