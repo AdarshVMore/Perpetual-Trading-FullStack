@@ -1,20 +1,31 @@
-import { UserManager } from "./UserManager";
-import { PositionManager } from "./PositionManager";
 import type { Order } from "@shared-types";
 import type { EngineServer } from "./EngineServer";
 import type { RedisManager } from "./RedisManager";
+import type { UserManager } from "./UserManager";
+import type { tickerUpdates } from "@shared-types/src/ws/ws.types";
 
 export class LiquidationManager {
   constructor(
     private userManager: UserManager,
     private engineServe: EngineServer,
-    private redisManager:RedisManager
+    private redisManager: RedisManager,
   ) {}
 
   async init(){
     await this.redisManager.listenToBinanceWS(({marketId, indexPrice})=>{
+      this.publishTickerUpdate(marketId, indexPrice);
       this.start(marketId, indexPrice)
     })
+  }
+
+  private publishTickerUpdate(marketId: string, indexPrice: number) {
+    const tickerEvent: tickerUpdates = {
+      type: "ticker",
+      marketId,
+      indexPrice,
+    };
+    const channel = this.redisManager.createChannel("ticker", marketId);
+    void this.redisManager.publish(channel, tickerEvent);
   }
 
   start(marketId: string, indexPrice: number) {
