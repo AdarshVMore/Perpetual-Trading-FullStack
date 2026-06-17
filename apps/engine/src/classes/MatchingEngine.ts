@@ -150,6 +150,7 @@ export class MatchingEngine {
           },
         };
         this.dbpoller?.sendToDBPoller(createDBPollerMakerPositionObject);
+        this.positionManager.publishPositionUpdate(order.userId, position)
       } else {
         this.positionManager.manipulatePositions(
           position,
@@ -168,6 +169,7 @@ export class MatchingEngine {
           },
         };
         this.dbpoller?.sendToDBPoller(createDBPollerTakerPositionObject);
+        this.positionManager.publishPositionUpdate(restingOrder.userId, makerPosition)
       } else
         this.positionManager.manipulatePositions(
           makerPosition,

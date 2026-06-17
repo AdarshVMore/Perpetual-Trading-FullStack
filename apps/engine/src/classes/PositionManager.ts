@@ -204,7 +204,7 @@ export class PositionManager {
     return existingPosition;
   }
 
-  private publishPositionUpdate(userId: string, position: UserPositions) {
+  public publishPositionUpdate(userId: string, position: UserPositions) {
     const channel = this.redisManager.createChannel(
       "position",
       position.marketId,
