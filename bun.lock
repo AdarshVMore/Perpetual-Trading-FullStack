@@ -5,6 +5,7 @@
     "": {
       "name": "perps-v2",
       "dependencies": {
+        "@prisma/client-runtime-utils": "^7.8.0",
         "@types/redis": "^4.0.11",
         "redis": "^5.12.1",
         "zod": "^4.4.3",
@@ -20,6 +21,7 @@
       "dependencies": {
         "@prisma-db": "workspace:*",
         "@prisma/client": "^7.8.0",
+        "@prisma/client-runtime-utils": "^7.8.0",
         "@redis-client": "workspace:*",
         "@shared-types": "workspace:*",
         "@types/bcrypt": "^6.0.0",

@@ -42,6 +42,8 @@ routes.post("/signup", async (req: Request, res: Response) => {
       data: { email: email, password: hashedPassword },
     });
 
+    console.log("probable userId is ", saveUser)
+
     const token = jwt.sign({ email: email }, JWT_SECRET, {
       expiresIn: "7d",
     });

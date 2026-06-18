@@ -21,7 +21,9 @@ export async function authUserMiddleware(req:Request, res:Response,next:NextFunc
 
     try{
         const verificationId = jwt.verify(token, userJWT_Secret)
-        
+        // if(verificationId === ) {
+
+        // }
         next()
 
 
