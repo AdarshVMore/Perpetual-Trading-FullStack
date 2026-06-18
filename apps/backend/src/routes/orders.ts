@@ -79,11 +79,17 @@ routes.post("/create-market",authAdminMiddleware, async (req:Request, res:Respon
     console.log("added to send-to-engine... ",res1)
     res.status(200).json({message: `recieved ${res1}`})
 })
+routes.get("/get-orders/:marketId", authUserMiddleware, async (req:Request, res:Response)=>{
+    const marketId = req.params.marketId
+    const userId = ""
+    // const orders = await db.orders.findMany({where:{marketId: marketId, userId: userId}})
+})
 routes.get("/get-order/:orderId", authUserMiddleware, (req:Request, res:Response) => {
     const orderId = req.params.orderId
 })
-routes.get("/get-fills/:marketId", authUserMiddleware, (req:Request, res:Response) => {
+routes.get("/get-fills/:marketId", authUserMiddleware, async (req:Request, res:Response) => {
     const marketId = req.params.marketId
+    const fills = await db.fills.findMany({where:{}})
 })
 
 export default routes

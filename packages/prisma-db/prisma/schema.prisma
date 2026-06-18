@@ -27,6 +27,7 @@ model Fills {
   user              User             @relation(fields:[userId], references: [id])
   orderId           String
   order             Orders           @relation(fields:[orderId], references: [id])
+  marketId          String
   makerId           String            
   takerId           String
   filledQty         Int
