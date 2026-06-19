@@ -27,6 +27,7 @@ while (true) {
         }
         const payload = JSON.parse(singleMessage.message.data);
         const appendData = new AppendData(payload)
+        console.log("in db poller service => ", payload)
         appendData.manipulateDB()
       }
     }
