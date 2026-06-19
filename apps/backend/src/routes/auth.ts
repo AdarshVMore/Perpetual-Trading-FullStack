@@ -4,7 +4,7 @@
 
 // seperate jwt_secret for both
 
-const JWT_SECRET = ""
+const JWT_SECRET = "secret"
 
 import { Router } from "express";
 import type { Response, Request } from "express";
@@ -16,6 +16,10 @@ import {userSchemaValidation} from "@shared-types"
 const routes = Router()
 
 routes.post("/signup", async (req: Request, res: Response) => {
+  console.log({
+  password: process.env.DB_PASSWORD,
+  type: typeof process.env.DB_PASSWORD,
+});
   // used GPT to solve an issue here => "userSchemaValidation.safeParse" does not return the object defined of types directly
   // it sends {sucess:"", data:"", error:""} and so object is in .data so need to check if result.sucess first and then email is result.data.email
   const result = userSchemaValidation.safeParse(req.body)
@@ -39,7 +43,7 @@ routes.post("/signup", async (req: Request, res: Response) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const saveUser = await db.user.create({
-      data: { email: email, password: hashedPassword },
+      data: { email: email, password: hashedPassword.toString() },
     });
 
     console.log("probable userId is ", saveUser)

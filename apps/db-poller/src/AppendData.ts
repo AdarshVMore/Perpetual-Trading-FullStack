@@ -172,6 +172,7 @@ export class AppendData {
     await db.fills.create({
       data: {
         userId: fill.taker,
+        marketId: fill.marketId,
         orderId: order.id,
         makerId: fill.maker,
         takerId: fill.taker,

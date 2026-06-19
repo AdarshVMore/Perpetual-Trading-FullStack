@@ -13,8 +13,6 @@ ws.on("message", (data:any) => {
   const parsed = JSON.parse(data.toString())
   redis.publish("binance-markprices", JSON.stringify(parsed))
   redis.set(`mark:${parsed.s}`, parsed.p)
-  console.log("publishing this data =====> ", JSON.stringify(parsed))
-  console.log("setting this data to redis", `mark:${parsed.s}`, parsed.p)
 });
 
 ws.on("error", console.error);
