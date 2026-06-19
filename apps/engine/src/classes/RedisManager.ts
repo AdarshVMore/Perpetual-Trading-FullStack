@@ -39,10 +39,7 @@ export class RedisManager {
       throw new Error("Redis publisher client is not connected");
     }
     // we are sending this to ws server => we need to send depthUpdates | tradeUpdates | positionUpdates | tickerUpdates
-
-    console.log("trying to publish");
     await this.publisherClient.publish(channel, JSON.stringify(data));
-    console.log("Published:", data, " to ", channel);
   }
 
   getPublisherClient() {
