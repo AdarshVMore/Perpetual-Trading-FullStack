@@ -122,12 +122,11 @@ export class PositionManager {
     existingPosition: UserPositions,
     userId: string,
   ): UserPositions {
-    let pnl =
-      position.qty * (position.averagePrice - existingPosition.averagePrice);
+    let pnl: number;
     if (existingPosition.positionType === "LONG") {
       pnl =
         position.qty * (position.averagePrice - existingPosition.averagePrice);
-    } else if (existingPosition.positionType === "SHORT") {
+    } else {
       pnl =
         position.qty * (existingPosition.averagePrice - position.averagePrice);
     }
@@ -154,9 +153,9 @@ export class PositionManager {
   ): UserPositions {
     let PnL = 0;
     if (existingPosition.positionType === "LONG") {
-      PnL = (position.entryPrice - existingPosition.entryPrice) * position.qty;
+      PnL = (position.averagePrice - existingPosition.averagePrice) * position.qty;
     } else if (existingPosition.positionType === "SHORT") {
-      PnL = (existingPosition.entryPrice - position.entryPrice) * position.qty;
+      PnL = (existingPosition.averagePrice - position.averagePrice) * position.qty;
     }
     const user = this.userManager.getUser(userId);
     if (!user) {
@@ -187,10 +186,10 @@ export class PositionManager {
     const user = this.userManager.getUser(userId);
     if (existingPosition.positionType === "LONG") {
       PnL =
-        (existingPosition.averagePrice - position.averagePrice) * position.qty;
+        (position.averagePrice - existingPosition.averagePrice) * existingPosition.qty;
     } else if (existingPosition.positionType === "SHORT") {
       PnL =
-        (position.averagePrice - existingPosition.averagePrice) * position.qty;
+        (existingPosition.averagePrice - position.averagePrice) * existingPosition.qty;
     }
     existingPosition.positionType = position.positionType;
     existingPosition.qty = position.qty - existingPosition.qty;
