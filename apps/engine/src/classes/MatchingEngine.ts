@@ -241,6 +241,12 @@ export class MatchingEngine {
 
       return response;
     }
+
+    if (order.orderType === "LIMIT" && order.remainingQty > 0) {
+      this.orderBook.addToBook(order);
+    }
+
+    return response;
   }
 }
 
