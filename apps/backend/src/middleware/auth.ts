@@ -20,10 +20,11 @@ export async function authUserMiddleware(req:Request, res:Response,next:NextFunc
     }
 
     try{
-        const verificationId = jwt.verify(token, userJWT_Secret)
-        // if(verificationId === ) {
-
-        // }
+        const verificationId = jwt.verify(token, userJWT_Secret) as {
+            userId: string
+        }
+        console.log("verificationId is , ", verificationId )
+        req.userId = verificationId.userId
         next()
 
 
@@ -50,7 +51,11 @@ export async function authAdminMiddleware(req:Request, res:Response,next:NextFun
         return
     }
 
-    const verificationId = jwt.verify(token, adminJWT_Secret)
+    const verificationId = jwt.verify(token, adminJWT_Secret) as {
+        adminId:string
+    }
+
+    req.adminId = verificationId.adminId
 
 
     next()
