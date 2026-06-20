@@ -115,7 +115,7 @@ export class OrderBook {
     } else {
       const newQueue = new LinkList<Order>();
       newQueue.pushBack(data);
-      this.orderBooks[data.marketId]?.bids.setElement(data.price, newQueue);
+      side.setElement(data.price, newQueue);
     }
   }
 
