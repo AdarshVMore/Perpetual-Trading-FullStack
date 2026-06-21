@@ -5,6 +5,7 @@ import {createRedisConnection} from "@redis-client"
 import type { RedisClientType } from "redis";
 import db from "@prisma-db"
 import {CreateOrderSchema, getFillsSchema, getOrderSchema, cancleOrdersSchema, createMarketSchema} from "@shared-types"
+import { string } from "zod";
 
 const routes = Router()
 
@@ -57,7 +58,7 @@ routes.post("/create-order", async (req:Request, res:Response) => {
     console.log("added to send-to-engine... ",res1)
     res.status(200).json({message: `order Accepted here is you queue number ${res1}`})
 })
-routes.post("/cancle-order/:orderId",authUserMiddleware, (req:Request, res:Response) => {
+routes.post("/cancle-order/:orderId",authUserMiddleware,async (req:Request, res:Response) => {
     const result = cancleOrdersSchema.safeParse(req.params)
      if(!result.success){
         return res.status(400).json({
@@ -65,6 +66,10 @@ routes.post("/cancle-order/:orderId",authUserMiddleware, (req:Request, res:Respo
         })
     }
     const {orderId} = result.data
+
+    const res1 = await redisClient?.XADD("send-to-engine", "*", {reqId:req.toString(), type: "cancle-order", orderId:orderId.toString()})
+    console.log("cancling order...", res1)
+    res.status(200).json({message:"request accepted to cancle the order"})
 
 })
 routes.post("/create-market",authAdminMiddleware, async (req:Request, res:Response) => {
@@ -81,15 +86,28 @@ routes.post("/create-market",authAdminMiddleware, async (req:Request, res:Respon
 })
 routes.get("/get-orders/:marketId", authUserMiddleware, async (req:Request, res:Response)=>{
     const marketId = req.params.marketId
-    const userId = ""
-    // const orders = await db.orders.findMany({where:{marketId: marketId, userId: userId}})
+    if(typeof marketId !== "string") {
+        return res.status(400).json({message:"marketId required for get-orders api via marketId"})
+    }
+    const userId = req.userId
+    const orders = await db.orders.findMany({where:{marketId,userId}})
+    res.status(200).json({orders:orders})
 })
-routes.get("/get-order/:orderId", authUserMiddleware, (req:Request, res:Response) => {
+routes.get("/get-order/:orderId", authUserMiddleware, async (req:Request, res:Response) => {
     const orderId = req.params.orderId
+    if(typeof orderId !== "string"){
+        return res.status(400).json({message: "orderId as string is required fir get-order via orderId"})
+    }
+    const order = await db.orders.findUnique({where:{id: orderId}})
+    res.status(200).json({order:order})
 })
 routes.get("/get-fills/:marketId", authUserMiddleware, async (req:Request, res:Response) => {
     const marketId = req.params.marketId
-    const fills = await db.fills.findMany({where:{}})
+    if(typeof marketId !== "string"){
+        return res.status(400).json({message: "marketId is required to get the fills"})
+    }
+    const fills = await db.markets.findMany({where:{id:marketId}})
+    res.status(200).json({fills: fills})
 })
 
 export default routes
