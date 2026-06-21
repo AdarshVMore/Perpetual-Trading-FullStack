@@ -7,6 +7,7 @@ export type marketType = "MARKET" | "LIMIT"
 export type orderStatus = "OPEN" | "FILLED" | "PARTIAL_FILLED" | "CANCLE"
 export type dbPollerEvent = "OrderUpdate" | "TradeExecuted" | "FillsCreated" | "PositionUpdated"
 
+
 // ====================================================  USERS   =========================================================
 
 export type UserPositions = {
@@ -55,9 +56,10 @@ export interface Order {
   userId: string;
   marketId: string;
   marketType: marketType;
+  orderType: string;
   positionType: positionType
   status: orderStatus;
-  price: number;
+  price?: number;
   qty: number;
   leverage: number;
   remainingQty: number;
@@ -83,6 +85,29 @@ export interface Fills {
   qty: number;
   price: number;
 }
+
+// =================================================  BACKEND STREAM  ====================================================
+
+
+export interface CreateMarket {
+  marketId: string,
+  marketName: string,
+  symbol: string,
+  maxLeverage: string
+
+}
+
+export interface CancleOrder {
+  orderId: string
+}
+
+
+export interface BackendEvents {
+    type: "create-order" | "cancle-order" | "create-market"
+    data: Order | CreateMarket | CancleOrder
+}
+
+
 
 // ====================================================  DBPoller =======================================================
 

@@ -1,3 +1,4 @@
+import type { BackendEvents, CancleOrder, CreateMarket, Order } from "@shared-types/src";
 import type { MatchingEngine } from "./MatchingEngine";
 import type { RedisManager } from "./RedisManager";
 import type { RiskManager } from "./RiskManager";
@@ -17,15 +18,25 @@ export class EngineServer {
       if (message) {
         for (let stream of message) {
           for (let singleMessage of stream.messages) {
-            const payload = singleMessage.message;
-            this.createOrder(payload);
+            if(!singleMessage.message.event){
+              throw new Error("single message from redis stream is not available")
+            }
+            const payload:BackendEvents = JSON.parse(singleMessage.message.event) // i had an error here , i could have solved but i used GPT to solve it, just need to debug a little that had to do .event and the .parse it
+            if(payload.type === "create-order") {
+              this.createOrder(payload.data as Order);
+            }
+            else if(payload.type === "cancle-order") {
+              this.cancleOrder(payload.data as CancleOrder)
+            } else if(payload.type === "create-market"){
+              this.createMarket(payload.data as CreateMarket)
+            }
           }
         }
       }
     }
   }
 
-  public createOrder(data:any) {
+  public createOrder(data:Order) {
     console.log("data recieved in the engine server", data)
     let user = this.userManager.getUser(data.userId)
 
@@ -51,5 +62,7 @@ export class EngineServer {
     const response = this.matchingEngine.matchOrder(data)
   }
 
-  public cancleOrder(orderId: string) {}
+  public cancleOrder(data: CancleOrder) {}
+
+  public createMarket(data: CreateMarket) {}
 }
