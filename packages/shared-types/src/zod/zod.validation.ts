@@ -35,6 +35,7 @@ export const createMarketSchema = z.object({
   // type:  z.enum(["create-order", "cancle-order", "get-order", "create-market"]),
   marketId: z.string(),
   marketName: z.string(),
+  symbol: z.string(),
   maxLeverage: z.number().max(100)
 })
 
