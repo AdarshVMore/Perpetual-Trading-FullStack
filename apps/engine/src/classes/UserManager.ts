@@ -24,12 +24,12 @@ export class UserManager {
     return this.users.get(userId)
   }
 
-  addOrder(userId:string, order:UserOrders) {
+  addOrder(userId:string, order:UserOrders|Order) {
     const user = this.users.get(userId)
     if(!user) {
         throw new Error("user does not exist to add order")
     }
-    user.orders.push(order)
+    user.orders.push(order as UserOrders)
   }
 
   updateOrder() {
