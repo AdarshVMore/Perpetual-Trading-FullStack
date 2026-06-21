@@ -11,6 +11,7 @@ import {
   cancleOrdersSchema,
   createMarketSchema,
   type BackendEvents,
+  type Order,
 } from "@shared-types";
 import { string } from "zod";
 
@@ -55,20 +56,23 @@ routes.post("/create-order", async (req: Request, res: Response) => {
 
   console.log("backend redis connected");
 
-  const payload: BackendEvents = {
-    type: "create-market",
-    data: {
+  const order:Order = {
       orderId: "",
       userId: userId,
       marketId: marketId,
-      orderType: orderType,
+      marketType: orderType,
+      orderType: "",
       positionType: positionType,
       status: "OPEN",
       price: price,
       qty: qty,
       leverage: leverage,
       remainingQty: 0,
-    },
+    }
+
+  const payload: BackendEvents = {
+    type: "create-market",
+    data: order
   };
 
   let res1;
@@ -83,21 +87,37 @@ routes.post("/create-order", async (req: Request, res: Response) => {
     .json({ message: `order Accepted here is you queue number ${res1}` });
 });
 routes.post(
-  "/cancle-order/:orderId",
+  "/cancle-order",
   authUserMiddleware,
   async (req: Request, res: Response) => {
-    const result = cancleOrdersSchema.safeParse(req.params);
+    const result = cancleOrdersSchema.safeParse(req.body);
     if (!result.success) {
       return res.status(400).json({
         error: result.error.flatten(),
       });
     }
-    const { orderId } = result.data;
+    const { price, qty, marketId, orderType, positionType, leverage } =
+    result.data;
+    const userId = req.userId
+    if(!userId) {
+        throw new Error("no user id for cancle order")
+    }
+    const order:Order = {
+      orderId: "",
+      userId: userId,
+      marketId: marketId,
+      marketType: orderType,
+      orderType: "",
+      positionType: positionType,
+      status: "OPEN",
+      price: price,
+      qty: qty,
+      leverage: leverage,
+      remainingQty: 0,
+    }
     const payload: BackendEvents = {
       type: "cancle-order",
-      data: {
-        orderId: orderId.toString(),
-      },
+      data: order
     };
 
     const res1 = await redisClient?.XADD("send-to-engine", "*", {

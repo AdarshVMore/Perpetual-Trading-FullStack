@@ -40,7 +40,8 @@ const engineServer = new EngineServer(
   matchingEngine,
   userManager,
   riskManager,
-  redisManager
+  redisManager,
+  orderBook
 );
 
 const liquidationManager = new LiquidationManager(userManager, engineServer, redisManager)

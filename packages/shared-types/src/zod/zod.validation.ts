@@ -28,7 +28,13 @@ export const getFillsSchema = z.object({
 
 export const cancleOrdersSchema = z.object({
   // type:  z.enum(["create-order", "cancle-order", "get-order", "create-market"]),
-  orderId: z.string()
+  userId: z.string(),
+  marketId: z.string(),
+  price: z.number(),
+  qty: z.number().positive(),
+  leverage: z.number().min(1).max(100),
+  orderType: z.enum(["MARKET", "LIMIT"]),
+  positionType: z.enum(["LONG", "SHORT"])
 })
 
 export const createMarketSchema = z.object({
