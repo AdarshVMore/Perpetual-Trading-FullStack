@@ -40,7 +40,7 @@ routes.post("/signup", async (req: Request, res: Response) => {
       data: { email: email, password: hashedPassword.toString() },
     });
 
-    const token = jwt.sign({ email: email }, JWT_SECRET, {
+    const token = jwt.sign({ userId: saveUser.id }, JWT_SECRET, {
       expiresIn: "7d",
     });
 
@@ -66,7 +66,7 @@ routes.post("/signin", async (req:Request, res:Response) => {
       return res.status(401).json({ message: "invalid password" });
     }
 
-    const token = jwt.sign({ email: email }, JWT_SECRET, { expiresIn: "7d" });
+    const token = jwt.sign({ userId: userExists.id }, JWT_SECRET, { expiresIn: "7d" });
     return res.status(200).json({ message: "user signed in", token: token });
   } catch (err) {
     console.error(err);
