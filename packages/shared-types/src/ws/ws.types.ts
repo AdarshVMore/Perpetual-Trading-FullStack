@@ -68,7 +68,7 @@ export type orderUpdates = {
   userId: string;
   marketId: string;
   positionType: positionType;
-  price: number;
+  price?: number;
   qty: number;
   remainingQty: number;
   leverage: number;
