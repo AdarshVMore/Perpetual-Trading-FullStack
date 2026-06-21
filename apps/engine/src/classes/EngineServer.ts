@@ -1,8 +1,9 @@
-import type { BackendEvents, CancleOrder, CreateMarket, Order } from "@shared-types/src";
+import type { BackendEvents, CreateMarket, Order } from "@shared-types/src";
 import type { MatchingEngine } from "./MatchingEngine";
 import type { RedisManager } from "./RedisManager";
 import type { RiskManager } from "./RiskManager";
 import type { UserManager } from "./UserManager";
+import type { OrderBook } from "./OrderBook";
 
 export class EngineServer {
   constructor(
@@ -10,6 +11,7 @@ export class EngineServer {
     private userManager: UserManager,
     private riskManager: RiskManager,
     private redisManager: RedisManager,
+    private orderBook: OrderBook
   ) {}
 
   async start(){
@@ -26,7 +28,7 @@ export class EngineServer {
               this.createOrder(payload.data as Order);
             }
             else if(payload.type === "cancle-order") {
-              this.cancleOrder(payload.data as CancleOrder)
+              this.cancleOrder(payload.data as Order)
             } else if(payload.type === "create-market"){
               this.createMarket(payload.data as CreateMarket)
             }
@@ -62,7 +64,9 @@ export class EngineServer {
     const response = this.matchingEngine.matchOrder(data)
   }
 
-  public cancleOrder(data: CancleOrder) {}
+  public cancleOrder(data: Order) {
+    this.orderBook.cancleOrder(data)
+  }
 
   public createMarket(data: CreateMarket) {}
 }

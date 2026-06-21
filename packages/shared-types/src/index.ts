@@ -97,14 +97,10 @@ export interface CreateMarket {
 
 }
 
-export interface CancleOrder {
-  orderId: string
-}
-
 
 export interface BackendEvents {
     type: "create-order" | "cancle-order" | "create-market"
-    data: Order | CreateMarket | CancleOrder
+    data: Order | CreateMarket
 }
 
 

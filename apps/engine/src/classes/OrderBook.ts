@@ -45,6 +45,10 @@ export class OrderBook {
         throw new Error("best ptice does not exits");
       }
 
+      if(!data.price){
+        throw new Error("price is not there in add Limit Order")
+      }
+
       while (data.remainingQty <= 0 || bestPrice <= data.price) {
         bestPrice = this.getBestPrice(data.positionType, book);
         if (!bestPrice) {
@@ -104,7 +108,7 @@ export class OrderBook {
   addToBook(data: Order) {
     const book = this.orderBooks[data.marketId];
     const side = data.positionType === "LONG" ? book?.bids : book?.asks;
-    const list = side?.find(data.price);
+    const list = side?.find(data.price ? data.price : NaN);
     if (!side) {
       throw new Error("side does not exists");
     }
@@ -115,11 +119,25 @@ export class OrderBook {
     } else {
       const newQueue = new LinkList<Order>();
       newQueue.pushBack(data);
-      side.setElement(data.price, newQueue);
+      side.setElement(data.price ? data.price : NaN, newQueue);
     }
   }
 
-  deleteOrder() {}
+  cancleOrder(order:Order) {
+    let book = this.orderBooks[order.marketId]
+    if(order.positionType === "LONG") {
+      if(!order.price){
+        return
+      }
+      const list = book?.bids.find(order.price)
+      const orderAtPrice = list?.pointer[1]
+      for(let node = orderAtPrice?.begin(); orderAtPrice?.end(); node?.next()){
+        if(node?.pointer.orderId === order.orderId){
+          orderAtPrice.eraseElementByIterator(node)
+        }
+      }
+    }
+  }
 
   getDepth(marketId: string, depth: number = 10) {
     const book = this.orderBooks[marketId];
