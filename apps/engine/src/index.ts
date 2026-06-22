@@ -46,7 +46,6 @@ const engineServer = new EngineServer(
 
 const liquidationManager = new LiquidationManager(userManager, engineServer, redisManager)
 
-
 await redisManager.connect();
 
 const dbPoller = new DBPoller(redisManager.getPublisherClient());
@@ -57,5 +56,3 @@ await liquidationManager.init()
 void engineServer.start().catch((error) => {
   console.error("engine server stopped unexpectedly", error);
 });
-
-console.log("all redis managers are getting called");

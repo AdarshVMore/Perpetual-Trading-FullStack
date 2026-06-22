@@ -2,10 +2,11 @@
   "name": "tests",
   "private": true,
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/ws": "^8.18.1"
   },
   "scripts": {
-    "dev": "vitest --run tests/tests.ts",
+    "dev": "bun --env-file=../../.env run vitest --run tests/tests.ts",
     "build": "bun build tests.ts --outdir dist --target=bun",
     "test": "echo 'Add tests script here'",
     "lint": "echo 'Add lint script here'"

@@ -43,14 +43,18 @@ export class LiquidationManager {
             position.positionType === "LONG"
           ) {
             const order = this.autoLiquiadte(user, marketId);
-            this.engineServe.createOrder(order);
+            if (order) {
+              this.engineServe.createOrder(order);
+            }
           }
           if (
             position.positionType === "SHORT" &&
             Number(indexPrice) >= position.liquidationPrice
           ) {
             const order = this.autoLiquiadte(user, marketId);
-            this.engineServe.createOrder(order);
+            if (order) {
+              this.engineServe.createOrder(order);
+            }
           }
         }
       }
@@ -69,6 +73,7 @@ export class LiquidationManager {
           userId: userId,
           marketId: marketId,
           marketType: "MARKET",
+          orderType: "MARKET",
           positionType: position.positionType,
           status: "OPEN",
           price: position.averagePrice,

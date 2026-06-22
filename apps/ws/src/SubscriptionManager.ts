@@ -16,7 +16,6 @@ export class SubcriptionManager {
     }
 
     this.channelToSocket.get(channel)?.add(socket);
-    console.log("subscribed to", channel);
   }
 
   removeSocket(socket: WebSocket) {
@@ -51,7 +50,6 @@ export class SubcriptionManager {
     }
 
     const channelIsEmpty = this.removeSocketFromChannel(channel, socket);
-    console.log("unsubscribed from", channel);
 
     return channelIsEmpty;
   }

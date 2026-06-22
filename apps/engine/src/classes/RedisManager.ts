@@ -8,7 +8,6 @@ export class RedisManager {
   public publisherClient?: RedisClientType | null;
 
   async connect() {
-    console.log("trying to connect engine redis client");
     this.streamClient = await createRedisConnection();
 
     if (!this.streamClient) {
@@ -29,7 +28,6 @@ export class RedisManager {
       throw new Error("Redis subscriber client is not connected");
     }
 
-    console.log("trying to listen for engine stream messages");
 
     await this.subscriberClient.subscribe("binance-markprices", (data: string) => {
       const parsed = JSON.parse(data);
