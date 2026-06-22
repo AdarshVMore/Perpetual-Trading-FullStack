@@ -10,7 +10,6 @@ export class initializePubSub {
   constructor(private subscriptionmanager: SubcriptionManager) {}
 
   async init() {
-    console.log("trying to connect websocket redis subscriber");
     this.subscriber = await createRedisConnection();
     this.subscriber?.on("error", (err: Error) => {
       console.log(err);
@@ -26,13 +25,11 @@ export class initializePubSub {
       return;
     }
 
-    console.log(`subscribing to ${channelName}`);
     this.activeChannels.add(channelName);
 
     await this.subscriber.subscribe(channelName, (message: string) => {
       const sockets = this.subscriptionmanager.getSubscribers(channelName);
       if (!sockets || sockets.size === 0) {
-        console.log("received pubsub message, but no sockets are subscribed");
         return;
       }
 
@@ -49,7 +46,6 @@ export class initializePubSub {
           socket.send(JSON.stringify(parsedData));
         }
       }
-      console.log("received pubsub data", channelName, parsedData);
     });
   }
 
@@ -64,6 +60,5 @@ export class initializePubSub {
 
     await this.subscriber.unsubscribe(channelName);
     this.activeChannels.delete(channelName);
-    console.log(`unsubscribed redis from ${channelName}`);
   }
 }

@@ -14,7 +14,6 @@ export class DBPoller {
     }
 
     const res = await this.publisherClient.XADD("send-to-dbpoller", "*", {"data":JSON.stringify(payloadData)})
-    console.log("send response to dbpoller stream...", res)
   }
 
 }

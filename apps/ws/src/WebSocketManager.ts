@@ -15,7 +15,6 @@ export class WebsocketManager {
   handleConnect() {
     this.ws.on("connection", (socket: WebSocket) => {
       socket.on("message", (data: RawData) => {
-        console.log("recieved message ===>", data.toString());
         void this.handleMessage(socket, data.toString());
       });
 
@@ -26,7 +25,6 @@ export class WebsocketManager {
   }
 
   async handleDisconnect(socket: WebSocket) {
-    console.log("user disconnected");
     const emptyChannels = this.subscriptionManager.removeSocket(socket);
 
     for (const channel of emptyChannels) {
@@ -43,7 +41,6 @@ export class WebsocketManager {
           message.market,
           message.userId,
         );
-        console.log("created channel , ", channel);
 
         this.subscriptionManager.subscribe(channel, socket);
         await this.initializePubSub.sendMessageBack(channel);
