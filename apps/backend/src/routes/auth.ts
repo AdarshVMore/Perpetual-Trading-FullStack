@@ -4,7 +4,9 @@
 
 // seperate jwt_secret for both
 
-const JWT_SECRET = "secret"
+const user_JWT_SECRET = "user_secret"
+const admin_JWT_Secret = "admin_secret"
+
 
 import { Router } from "express";
 import type { Response, Request } from "express";
@@ -15,7 +17,7 @@ import {userSchemaValidation} from "@shared-types"
 
 const routes = Router()
 
-routes.post("/signup", async (req: Request, res: Response) => {
+routes.post("/signup", async (req: Request, res: Response) => { 
   const result = userSchemaValidation.safeParse(req.body)
   if(!result.success){
     return res.status(400).json({
@@ -23,7 +25,7 @@ routes.post("/signup", async (req: Request, res: Response) => {
     })
   }
 
-  const {email, password} = result.data
+  const {email, password, role} = result.data
 
   try {
     const userExists = await db.user.findUnique({
@@ -37,8 +39,10 @@ routes.post("/signup", async (req: Request, res: Response) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const saveUser = await db.user.create({
-      data: { email: email, password: hashedPassword.toString() },
+      data: { email: email, password: hashedPassword.toString(), role: role },
     });
+
+    const JWT_SECRET = role === "admin" ? admin_JWT_Secret : user_JWT_SECRET
 
     const token = jwt.sign({ userId: saveUser.id }, JWT_SECRET, {
       expiresIn: "7d",
@@ -54,7 +58,7 @@ routes.post("/signup", async (req: Request, res: Response) => {
 });
 
 routes.post("/signin", async (req:Request, res:Response) => {
-  const { email, password } = req.body;
+  const { email, password, role } = req.body;
   try {
     const userExists = await db.user.findUnique({ where: { email: email } });
     if (!userExists) {
@@ -65,6 +69,9 @@ routes.post("/signin", async (req:Request, res:Response) => {
     if (!passwordCheck) {
       return res.status(401).json({ message: "invalid password" });
     }
+
+    const JWT_SECRET = role === "admin" ? admin_JWT_Secret : user_JWT_SECRET
+
 
     const token = jwt.sign({ userId: userExists.id }, JWT_SECRET, { expiresIn: "7d" });
     return res.status(200).json({ message: "user signed in", token: token });

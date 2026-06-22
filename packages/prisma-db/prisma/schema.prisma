@@ -16,6 +16,7 @@ model User {
   id          String      @id @default(cuid())
   email       String      @unique
   password    String
+  role        Role
   orders      Orders[]
   fills       Fills[]
   positions   Positions[]
@@ -95,6 +96,11 @@ model Markets {
   orders      Orders[]
   positions   Positions[]
   fills       Fills[]
+}
+
+enum Role {
+  admin
+  user
 }
 
 enum OrderType {
