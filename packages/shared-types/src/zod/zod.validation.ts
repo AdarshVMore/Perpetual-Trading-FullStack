@@ -2,7 +2,8 @@ import z from "zod";
 
 export const userSchemaValidation = z.object({
     email: z.email(),
-    password: z.string()
+    password: z.string(),
+    role: z.enum(["admin", "user"])
 })
 
 export const CreateOrderSchema = z.object({
@@ -41,7 +42,7 @@ export const createMarketSchema = z.object({
   // type:  z.enum(["create-order", "cancle-order", "get-order", "create-market"]),
   marketId: z.string(),
   marketName: z.string(),
-  symbol: z.string(),
+  symbol: z.string().optional().default(""),
   maxLeverage: z.number().max(100)
 })
 
