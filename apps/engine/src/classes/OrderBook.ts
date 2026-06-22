@@ -124,16 +124,18 @@ export class OrderBook {
   }
 
   cancleOrder(order:Order) {
-    let book = this.orderBooks[order.marketId]
-    if(order.positionType === "LONG") {
-      if(!order.price){
-        return
-      }
-      const list = book?.bids.find(order.price)
+    const book = this.orderBooks[order.marketId]
+    if (!book || !order.price) return
+
+    const side = order.positionType === "LONG" ? book.bids : book.asks
+    const list = side.find(order.price)
+    if (!list?.equals(side?.end())) {
       const orderAtPrice = list?.pointer[1]
-      for(let node = orderAtPrice?.begin(); orderAtPrice?.end(); node?.next()){
-        if(node?.pointer.orderId === order.orderId){
+      if (!orderAtPrice) return
+      for(let node = orderAtPrice?.begin(); !node?.equals(orderAtPrice?.end()); node = node?.next()){
+        if(node?.pointer?.orderId === order.orderId){
           orderAtPrice.eraseElementByIterator(node)
+          break
         }
       }
     }

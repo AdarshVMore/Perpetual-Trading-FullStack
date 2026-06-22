@@ -1,5 +1,6 @@
 import db from "@prisma-db";
 import type { OrderStatus, OrderType } from "@prisma-db";
+import type { PositionStatus } from "@prisma-db";
 import type { CustomPosition, dbPollerEvents, Fills, Order } from "@shared-types/src";
 
 type DbPollerData = Order | CustomPosition | Fills;
@@ -22,13 +23,39 @@ function mapOrderStatus(status: Order["status"]): OrderStatus {
   return "OPEN";
 }
 
+async function ensureUserExists(userId: string) {
+  await db.user.upsert({
+    where: { id: userId },
+    update: {},
+    create: {
+      id: userId,
+      email: `${userId}@placeholder.com`,
+      password: "placeholder",
+      role: "user"
+    },
+  });
+}
+
+async function ensureMarketExists(marketId: string) {
+  await db.markets.upsert({
+    where: { id: marketId },
+    update: {},
+    create: {
+      id: marketId,
+      symbol: marketId,
+      market: marketId,
+      maxLeverage: 10,
+    },
+  });
+}
+
 function getOrderData(order: Order) {
   return {
     userId: order.userId,
-    price: order.price,
+    price: order.price ?? 0,
     qty: order.qty,
     leverage: order.leverage,
-    Margin: (order.price * order.qty) / order.leverage,
+    margin: ((order.price ?? 0) * order.qty) / order.leverage,
     marketId: order.marketId,
     orderType: order.marketType as OrderType,
     orderStatus: mapOrderStatus(order.status),
@@ -45,10 +72,11 @@ function getPositionData(incommingData: CustomPosition) {
     margin: incommingData.position.margin,
     maintainanceMargin: incommingData.position.maintainanceMargin,
     liquidationPrice: incommingData.position.liquidationPrice,
-    pnL: incommingData.position.pnL,
+    realisedPnL: incommingData.position.pnL,
     entryPrice: incommingData.position.entryPrice,
     averagePrice: incommingData.position.averagePrice,
     unrealisedPnL: incommingData.position.unrealisedPnL,
+    status: "OPEN" as PositionStatus,
   };
 }
 
@@ -82,6 +110,8 @@ export class AppendData {
 
     const incommingData = payload.payload.data;
     const positionData = getPositionData(incommingData);
+    // await ensureUserExists(incommingData.userId);
+    // await ensureMarketExists(incommingData.position.marketId);
 
     if (payload.payload.method === "POST") {
       await db.positions.create({
@@ -101,12 +131,15 @@ export class AppendData {
       return;
     }
 
-    await db.positions.deleteMany({
+    if(payload.payload.method === "DELETE"){
+      await db.positions.deleteMany({
       where: {
         userId: incommingData.userId,
         marketId: incommingData.position.marketId,
       },
     });
+    return
+    }
   }
 
   async order(payload: dbPollerEvents) {
@@ -115,32 +148,36 @@ export class AppendData {
     }
 
     const order = payload.payload.data;
+    await ensureUserExists(order.userId);
+    await ensureMarketExists(order.marketId);
 
     if (payload.payload.method === "POST") {
-      await db.orders.create({
-        data: {
-          id: order.orderId,
-          ...getOrderData(order),
-        },
+      await db.orders.upsert({
+        where: { id: order.orderId },
+        create: getOrderData(order),
+        update: getOrderData(order),
       });
       return;
     }
 
     if (payload.payload.method === "PUT") {
-      await db.orders.update({
-        where: {
-          id: order.orderId,
-        },
-        data: getOrderData(order),
+      await db.orders.upsert({
+        where: { id: order.orderId },
+        create: getOrderData(order),
+        update: getOrderData(order),
       });
       return;
     }
 
-    await db.orders.delete({
+    if (payload.payload.method === "DELETE") {
+      await db.orders.delete({
       where: {
         id: order.orderId,
       },
     });
+      return
+
+    }
   }
 
   async fills(payload: dbPollerEvents) {
@@ -153,6 +190,10 @@ export class AppendData {
     }
 
     const fill = payload.payload.data;
+    await ensureUserExists(fill.taker);
+    await ensureUserExists(fill.maker);
+    await ensureMarketExists(fill.marketId);
+
     const order = await db.orders.findFirst({
       where: {
         marketId: fill.marketId,
@@ -176,6 +217,7 @@ export class AppendData {
         orderId: order.id,
         makerId: fill.maker,
         takerId: fill.taker,
+        originalQty: order.qty,
         filledQty: fill.qty,
         remainingQty,
       },

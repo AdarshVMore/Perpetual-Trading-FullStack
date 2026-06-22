@@ -1,7 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient } from "redis";
 import type { RedisClientType } from "redis";
-import db from "@prisma-db";
+import WebSocket from "ws";
+import db, { type OrderType } from "@prisma-db";
+import { createViteLogger } from "vitest/node";
 
 // ── Config ──────────────────────────────────────────────────────────
 const HTTP_URL = "http://localhost:3000";
@@ -574,73 +576,170 @@ describe("🔔 Ticker Stream (via Redis PubSub)", () => {
 });
 
 describe("🗄️ DB Poller Persistence", () => {
-  it("writes orders to the send-to-dbpoller stream", async () => {
+  const waitFor = async (
+    assertion: () => Promise<void>,
+    timeout = 5000,
+    interval = 250,
+  ) => {
+    const start = Date.now();
+
+    while (Date.now() - start < timeout) {
+      try {
+        await assertion();
+        return;
+      } catch {
+        await new Promise((r) => setTimeout(r, interval));
+      }
+    }
+
+    await assertion();
+  };
+
+  beforeAll(async () => {
     await clearRedisStreams();
+
+    // Optional but recommended
+    await cleanupDatabase();
+  });
+
+  it("writes OrderUpdate events to send-to-dbpoller stream", async () => {
+    const userId = "db-persistence-user";
 
     await createOrder(
       buildOrder({
-        userId: "db-persistence-user",
+        userId,
         orderType: "LIMIT",
         price: 48000,
         qty: 1,
       }),
     );
 
-    // Allow engine to process
-    await new Promise((r) => setTimeout(r, 1000));
+    await waitFor(async () => {
+      const messages = await readDBPollerStream();
 
-    const dbPollerMessages = await readDBPollerStream();
-    expect(dbPollerMessages.length).toBeGreaterThan(0);
+      const orderUpdate = messages.find((msg) => {
+        if (!msg.data) return false;
+        try {
+          const parsed = JSON.parse(msg.data);
+          return (
+            parsed.type === "OrderUpdate" &&
+            parsed.payload?.data.userId === userId
+          );
+        } catch {
+          return false;
+        }
+      });
 
-    // Each message should have a 'data' field containing JSON
-    for (const msg of dbPollerMessages) {
-      expect(msg.data).toBeDefined();
-      if(!msg.data){
-        throw new Error("msg data not exist")
-      }
-      const parsed = JSON.parse(msg.data);
-      expect(parsed.type).toBeDefined();
-      expect(["OrderUpdate", "TradeExecuted", "FillsCreated", "PositionUpdated"]).toContain(parsed.type);
-    }
+      expect(orderUpdate).toBeDefined();
+    });
   });
 
-  it("persists OrderUpdate events to the database", async () => {
-    await clearRedisStreams();
+  it("persists OrderUpdate events to database", async () => {
+    const userId = `db-order-user-${Date.now()}`;
 
-    await createOrder(
+    const id = await createOrder(
       buildOrder({
-        userId: "db-order-user",
+        userId,
         orderType: "LIMIT",
         price: 47000,
         qty: 1,
       }),
     );
 
-    await new Promise((r) => setTimeout(r, 1500));
+    console.log("created Order = ", id)
 
-    // DB-Poller should have written the order to the Orders table
-    // Check via Prisma
-    const orders = await db.orders.findMany({
-      where: { userId: "db-order-user" },
+    await waitFor(async () => {
+      const orders = await db.orders.findMany({
+        where: { userId },
+      });
+
+      console.log("orders in this is =====> ", orders)
+
+      expect(orders.length).toBeGreaterThan(0);
+
+      const order = orders[0];
+
+      expect(order?.userId).toBe(userId);
+      expect(order?.qty).toBe(1);
+      expect(order?.marketId).toBe(MARKET_ID);
     });
-
-    // If db-poller is running, we expect at least one order
-    // If not, this will be empty (graceful)
-    if (orders.length > 0) {
-      expect(orders[0]?.qty).toBe(1);
-      expect(orders[0]?.marketId).toBe(MARKET_ID);
-    }
   });
 
-  it("persists FillsCreated events", async () => {
-    const fills = await db.fills.findMany({});
-    // If engine has been running with orders, fills should exist
-    expect(Array.isArray(fills)).toBe(true);
+  it("persists FillsCreated events after a trade executes", async () => {
+    const sellerId = `seller-${Date.now()}`;
+    const buyerId = `buyer-${Date.now()}`;
+
+    await createOrder(
+      buildOrder({
+        userId: sellerId,
+        positionType: "SHORT",
+        orderType: "LIMIT",
+        price: 50000,
+        qty: 1,
+      }),
+    );
+
+    await createOrder(
+      buildOrder({
+        userId: buyerId,
+        positionType: "LONG",
+        orderType: "MARKET",
+        qty: 1,
+      }),
+    );
+
+    await waitFor(async () => {
+      const fills = await db.fills.findMany({
+        where: {
+          OR: [
+            { userId: buyerId },
+            { userId: sellerId },
+          ],
+        },
+      });
+
+      expect(fills.length).toBeGreaterThan(0);
+    });
   });
 
-  it("persists PositionUpdated events", async () => {
-    const positions = await db.positions.findMany({});
-    expect(Array.isArray(positions)).toBe(true);
+  it("persists PositionUpdated events after a trade executes", async () => {
+    const sellerId = `position-seller-${Date.now()}`;
+    const buyerId = `position-buyer-${Date.now()}`;
+
+    await createOrder(
+      buildOrder({
+        userId: sellerId,
+        positionType: "SHORT",
+        orderType: "LIMIT",
+        price: 51000,
+        qty: 1,
+      }),
+    );
+
+    await createOrder(
+      buildOrder({
+        userId: buyerId,
+        positionType: "LONG",
+        orderType: "MARKET",
+        qty: 1,
+      }),
+    );
+
+    await waitFor(async () => {
+      const positions = await db.positions.findMany({
+        where: {
+          userId: buyerId,
+          marketId: MARKET_ID,
+        },
+      });
+
+      expect(positions.length).toBeGreaterThan(0);
+
+      const position = positions[0];
+
+      expect(position?.userId).toBe(buyerId);
+      expect(position?.marketId).toBe(MARKET_ID);
+    });
   });
 });
 
@@ -887,7 +986,6 @@ describe("🔄 Open / Increase / Reduce / Close Position", () => {
   it("reduces position when opposite-side smaller order is matched", async () => {
     await clearRedisStreams();
 
-    // Use a fresh pair for clean state
     const reduceMaker = "reduce-maker";
     const reduceTaker = "reduce-taker";
 
@@ -913,28 +1011,43 @@ describe("🔄 Open / Increase / Reduce / Close Position", () => {
       }),
     );
 
-    // Now maker has a short position of 3
-    // Place a smaller long (from maker) to reduce it
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Now reduceMaker has SHORT 3. Place a LIMIT LONG 1 as resting order.
     await createOrder(
       buildOrder({
         userId: reduceMaker,
-        orderType: "MARKET",
-        price: 0,
+        orderType: "LIMIT",
+        price: 42000,
         qty: 1,
         positionType: "LONG",
       }),
     );
 
+    await new Promise((r) => setTimeout(r, 500));
+
+    // reduceTaker places MARKET SHORT 1 to match against maker's LIMIT LONG 1
+    // This triggers reducePosition on maker: SHORT 3 → SHORT 2
+    await createOrder(
+      buildOrder({
+        userId: reduceTaker,
+        orderType: "MARKET",
+        price: 0,
+        qty: 1,
+        positionType: "SHORT",
+      }),
+    );
+
     await new Promise((r) => setTimeout(r, 1500));
 
-    // DB should reflect the reduced position
     const makerPositions = await db.positions.findMany({
       where: { userId: reduceMaker, marketId: MARKET_ID },
     });
 
     if (makerPositions.length > 0) {
       // Position was 3 SHORT, reduced by 1 LONG → 2 SHORT
-      expect(makerPositions[0]?.qty).toBeGreaterThanOrEqual(2);
+      expect(makerPositions[0]?.qty).toBe(2);
+      expect(makerPositions[0]?.positionType).toBe("SHORT");
     }
   });
 
@@ -944,7 +1057,6 @@ describe("🔄 Open / Increase / Reduce / Close Position", () => {
     const closeMaker = "close-maker";
     const closeTaker = "close-taker";
 
-    // Open a position
     await createOrder(
       buildOrder({
         userId: closeMaker,
@@ -967,29 +1079,41 @@ describe("🔄 Open / Increase / Reduce / Close Position", () => {
       }),
     );
 
-    // Now closeMaker has a SHORT 2 position
-    // Place opposite side long of equal qty to close
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Now closeMaker has SHORT 2. Place LIMIT LONG 2 as resting order.
     await createOrder(
       buildOrder({
         userId: closeMaker,
-        orderType: "MARKET",
-        price: 0,
+        orderType: "LIMIT",
+        price: 40000,
         qty: 2,
         positionType: "LONG",
       }),
     );
 
+    await new Promise((r) => setTimeout(r, 500));
+
+    // closeTaker places MARKET SHORT 2 to match against maker's LIMIT LONG 2
+    // This triggers canclePosition on maker: SHORT 2 → position fully closed
+    await createOrder(
+      buildOrder({
+        userId: closeTaker,
+        orderType: "MARKET",
+        price: 0,
+        qty: 2,
+        positionType: "SHORT",
+      }),
+    );
+
     await new Promise((r) => setTimeout(r, 1500));
 
-    // Position should be deleted or qty=0
+    // Position should be deleted from DB (DELETE event sent to dbpoller)
     const makerPositions = await db.positions.findMany({
       where: { userId: closeMaker, marketId: MARKET_ID },
     });
 
-    // Position should either be gone or have 0 qty
-    if (makerPositions.length > 0) {
-      expect(makerPositions[0]?.qty).toBe(0);
-    }
+    expect(makerPositions.length).toBe(0);
   });
 
   it("reverses position when opposite-side larger order is matched", async () => {
@@ -998,7 +1122,6 @@ describe("🔄 Open / Increase / Reduce / Close Position", () => {
     const reverseMaker = "reverse-maker";
     const reverseTaker = "reverse-taker";
 
-    // Open a SHORT position of 2
     await createOrder(
       buildOrder({
         userId: reverseMaker,
@@ -1021,15 +1144,30 @@ describe("🔄 Open / Increase / Reduce / Close Position", () => {
       }),
     );
 
-    // Now reverseMaker has SHORT 2
-    // Place a LONG 5 → should reverse to LONG 3
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Now reverseMaker has SHORT 2. Place LIMIT LONG 5 as resting order.
     await createOrder(
       buildOrder({
         userId: reverseMaker,
+        orderType: "LIMIT",
+        price: 42000,
+        qty: 5,
+        positionType: "LONG",
+      }),
+    );
+
+    await new Promise((r) => setTimeout(r, 500));
+
+    // reverseTaker places MARKET SHORT 5 to match against maker's LIMIT LONG 5
+    // This triggers reversePosition on maker: SHORT 2 → LONG 3
+    await createOrder(
+      buildOrder({
+        userId: reverseTaker,
         orderType: "MARKET",
         price: 0,
         qty: 5,
-        positionType: "LONG",
+        positionType: "SHORT",
       }),
     );
 
@@ -1041,9 +1179,8 @@ describe("🔄 Open / Increase / Reduce / Close Position", () => {
 
     if (makerPos.length > 0) {
       // Was SHORT 2, reversed by LONG 5 → LONG 3
-      // Note: engine's reversePosition flips positionType to the incoming side
       expect(makerPos[0]?.positionType).toBe("LONG");
-      // Commented: the exact qty depends on whether there was liquidity
+      expect(makerPos[0]?.qty).toBe(3); // 5 - 2 = 3
     }
   });
 });
@@ -1078,14 +1215,31 @@ describe("💰 Realized PnL", () => {
       }),
     );
 
-    // Close half the position to realize PnL
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Now pnlMaker has SHORT 2 @ 38000. Place LIMIT LONG 1 @ 37000 as resting order.
     await createOrder(
       buildOrder({
         userId: pnlMaker,
         orderType: "LIMIT",
-        price: 37500,
+        price: 37000,
         qty: 1,
         positionType: "LONG",
+      }),
+    );
+
+    await new Promise((r) => setTimeout(r, 500));
+
+    // pnlTaker places MARKET SHORT 1 to match against maker's LIMIT LONG 1
+    // This triggers reducePosition on maker: SHORT 2 → SHORT 1
+    // PnL = 1 * (38000 - 37000) = 1000
+    await createOrder(
+      buildOrder({
+        userId: pnlTaker,
+        orderType: "MARKET",
+        price: 0,
+        qty: 1,
+        positionType: "SHORT",
       }),
     );
 
@@ -1094,6 +1248,18 @@ describe("💰 Realized PnL", () => {
     // Check fill was recorded
     const fills = await db.fills.findMany({});
     expect(Array.isArray(fills)).toBe(true);
+    expect(fills.length).toBeGreaterThan(0);
+
+    // Check position was reduced and PnL was calculated
+    const makerPositions = await db.positions.findMany({
+      where: { userId: pnlMaker, marketId: MARKET_ID },
+    });
+    if (makerPositions.length > 0) {
+      expect(makerPositions[0]?.qty).toBe(1);
+      expect(makerPositions[0]?.positionType).toBe("SHORT");
+      // pnlMaker sold SHORT at 38000, bought back at 37000 → profit of 1000
+      expect(makerPositions[0]?.realisedPnL).toBe(1000);
+    }
   });
 });
 
@@ -1327,7 +1493,7 @@ describe("🌐 WebSocket Subscription", () => {
         ws.send(
           JSON.stringify({
             type: "SUBSCRIBE",
-            channel: "depth",
+            channel: "depth:BTCUSDT",
             market: MARKET_ID,
           }),
         );
