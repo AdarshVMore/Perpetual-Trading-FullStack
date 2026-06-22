@@ -19,7 +19,7 @@ model User {
   orders      Orders[]
   fills       Fills[]
   positions   Positions[]
-  userBalance UserBalance[]
+  userBalance UserBalance?
 }
 
 model Fills {
@@ -46,7 +46,7 @@ model Orders {
   price       Float?
   qty         Float
   leverage    Int
-  Margin      Float?
+  margin      Float?
   marketId    String
   market      Markets     @relation(fields: [marketId], references: [id])
   orderType   OrderType
@@ -78,11 +78,11 @@ model Positions {
 }
 
 model UserBalance {
-  id               String   @default(cuid())  @unique
-  userId           String
+  id               String   @id @default(cuid())
+  userId           String   @unique
   user             User     @relation(fields: [userId], references: [id])
-  availableBalance Float
-  lockedBalance    Float
+  availableBalance Float    @default(0)
+  lockedBalance    Float    @default(0)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
