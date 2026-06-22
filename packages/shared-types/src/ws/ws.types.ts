@@ -12,12 +12,6 @@ export type EngineEvents =
   | orderUpdates;
 
 type CreateOrder = {
-  type: "cancle-order";
-  orderId: string;
-  userId: string;
-  marketId: string;
-};
-type CancleOrder = {
   type: "create-order";
   orderId: string;
   userId: string;
@@ -29,6 +23,17 @@ type CancleOrder = {
   qty: number;
   leverage: number;
   remainingQty: number;
+};
+type CancleOrder = {
+  type: "cancle-order";
+  orderId: string;
+  userId: string;
+  marketId: string;
+  price: number;
+  qty: number;
+  leverage: number;
+  orderType: marketType;
+  positionType: positionType;
 };
 
 export type depthUpdates = {
