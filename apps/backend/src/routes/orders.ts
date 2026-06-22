@@ -4,17 +4,14 @@ import { authUserMiddleware, authAdminMiddleware } from "../middleware/auth";
 import { createRedisConnection } from "@redis-client";
 import type { RedisClientType } from "redis";
 import db from "@prisma-db";
+import crypto from "crypto";
 import {
   CreateOrderSchema,
   getFillsSchema,
   getOrderSchema,
   cancleOrdersSchema,
   createMarketSchema,
-  type BackendEvents,
-  type Order,
 } from "@shared-types";
-import { string } from "zod";
-
 const routes = Router();
 
 let redisClient: RedisClientType | null;
@@ -27,103 +24,84 @@ export async function connectRedisBackend() {
 
 const redisStreamName = process.env.REDIS_STREAM_NAME;
 
-console.log("name of the stream", redisStreamName);
-
 connectRedisBackend();
-routes.post("/create-order", async (req: Request, res: Response) => {
-  const result = CreateOrderSchema.safeParse(req.body);
-  if (!result.success) {
-    return res.status(400).json({
-      error: result.error.flatten(),
-    });
-  }
+routes.post(
+  "/create-order",
+  authUserMiddleware,
+  async (req: Request, res: Response) => {
+    console.log("recieved the order...");
+    const result = CreateOrderSchema.safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).json({
+        error: result.error.flatten(),
+      });
+    }
 
-  const userId = req.userId;
-  if (!userId) {
-    throw new Error("userId not found for create-order api");
-  }
+    const { userId, price, qty, marketId, orderType, positionType, leverage } =
+      result.data;
 
-  const { price, qty, marketId, orderType, positionType, leverage } =
-    result.data;
+    if (!redisClient) {
+      res.status(400).json({ message: "unable to start redis" });
+      return;
+    }
 
-  console.log(userId, price, qty, marketId, orderType, positionType, leverage);
+    const reqId = crypto.randomUUID();
 
-  if (!redisClient) {
-    console.log("");
-    res.status(400).json({ message: "unable to start redis" });
-    return;
-  }
-
-  console.log("backend redis connected");
-
-  const order:Order = {
+    const res1 = await redisClient.XADD("send-to-engine", "*", {
+      type: "create-order",
+      reqId: reqId,
       orderId: "",
       userId: userId,
       marketId: marketId,
-      marketType: orderType,
-      orderType: "",
+      qty: qty.toString(),
+      price: price.toString(),
+      leverage: leverage.toString(),
+      remainingQty: "0",
+      orderType: orderType,
       positionType: positionType,
       status: "OPEN",
-      price: price,
-      qty: qty,
-      leverage: leverage,
-      remainingQty: 0,
-    }
+    });
 
-  const payload: BackendEvents = {
-    type: "create-market",
-    data: order
-  };
-
-  let res1;
-
-  res1 = await redisClient.XADD("send-to-engine", "*", {
-    event: JSON.stringify(payload),
-  }); // redis only accepts buffer | string , so cant pass numbers in redis . so added .toString() numbers
-
-  console.log("added to send-to-engine... ", res1);
-  res
-    .status(200)
-    .json({ message: `order Accepted here is you queue number ${res1}` });
-});
+    res
+      .status(200)
+      .json({ message: `order Accepted here is you queue number ${res1}` });
+  },
+);
 routes.post(
-  "/cancle-order",
+  "/cancle-order/:orderId",
   authUserMiddleware,
   async (req: Request, res: Response) => {
+    const orderId = String(req.params.orderId ?? "");
+    if (!orderId) {
+      return res.status(400).json({ message: "orderId required" });
+    }
+
     const result = cancleOrdersSchema.safeParse(req.body);
     if (!result.success) {
       return res.status(400).json({
         error: result.error.flatten(),
       });
     }
-    const { price, qty, marketId, orderType, positionType, leverage } =
-    result.data;
-    const userId = req.userId
-    if(!userId) {
-        throw new Error("no user id for cancle order")
+
+    if (!redisClient) {
+      res.status(400).json({ message: "unable to start redis" });
+      return;
     }
-    const order:Order = {
-      orderId: "",
+
+    const { userId, marketId, price, qty, leverage, orderType, positionType } =
+      result.data;
+
+    await redisClient.XADD("send-to-engine", "*", {
+      type: "cancle-order",
+      orderId: orderId,
       userId: userId,
       marketId: marketId,
-      marketType: orderType,
-      orderType: "",
+      price: price.toString(),
+      qty: qty.toString(),
+      leverage: leverage.toString(),
+      orderType: orderType,
       positionType: positionType,
-      status: "OPEN",
-      price: price,
-      qty: qty,
-      leverage: leverage,
-      remainingQty: 0,
-    }
-    const payload: BackendEvents = {
-      type: "cancle-order",
-      data: order
-    };
-
-    const res1 = await redisClient?.XADD("send-to-engine", "*", {
-      event: JSON.stringify(payload),
     });
-    console.log("cancling order...", res1);
     res.status(200).json({ message: "request accepted to cancle the order" });
   },
 );
@@ -139,20 +117,19 @@ routes.post(
     }
 
     const { marketName, marketId, maxLeverage, symbol } = result.data;
-    const payload: BackendEvents = {
-      type: "create-market",
-      data: {
-        marketName: marketName,
-        marketId: marketId,
-        maxLeverage: maxLeverage.toString(),
-        symbol: symbol,
-      },
-    };
 
-    const res1 = await redisClient?.xAdd("send-to-engine", "*", {
-      event: JSON.stringify(payload),
+    if (!redisClient) {
+      res.status(400).json({ message: "unable to start redis" });
+      return;
+    }
+
+    const res1 = await redisClient.xAdd("send-to-engine", "*", {
+      type: "create-market",
+      marketId: marketId,
+      marketName: marketName,
+      maxLeverage: maxLeverage.toString(),
+      symbol: symbol,
     });
-    console.log("added to send-to-engine... ", res1);
     res.status(200).json({ message: `recieved ${res1}` });
   },
 );

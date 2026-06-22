@@ -13,13 +13,18 @@ export class RiskManager{
     constructor(private userManager:UserManager, private orderBookManager:OrderBook){}
 
     calculateMargin(data:Order){
-        let price
-        if(data.marketType === "MARKET"){
-            
-        } else {
-            price = data.price
+        let price = data.price;
+        if (!price || data.marketType === "MARKET") {
+            const book = this.orderBookManager.getBook(data.marketId);
+            if (book) {
+                const bestPrice = this.orderBookManager.getBestPrice(data.positionType, book);
+                price = bestPrice ?? book.lastTradedPrice;
+            }
+            if (!price) {
+                throw new Error("Price is required for margin calculation");
+            }
         }
-        return (data.price * data.qty) / data.leverage
+        return (price * data.qty) / data.leverage
     }
 
     validate(userId:string, margin:number){

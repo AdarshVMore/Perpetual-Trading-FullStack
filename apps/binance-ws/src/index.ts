@@ -6,7 +6,7 @@ const ws = new WebSocket(
 );
 
 ws.on("open", () => {
-  console.log("CONNECTED");
+  console.log("binance WS CONNECTED");
 });
 
 ws.on("message", (data:any) => {

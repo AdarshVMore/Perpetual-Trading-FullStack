@@ -1,4 +1,4 @@
-import type { BackendEvents, CreateMarket, Order } from "@shared-types/src";
+import type { CreateMarket, Order, marketType, orderStatus, positionType } from "@shared-types/src";
 import type { MatchingEngine } from "./MatchingEngine";
 import type { RedisManager } from "./RedisManager";
 import type { RiskManager } from "./RiskManager";
@@ -20,17 +20,46 @@ export class EngineServer {
       if (message) {
         for (let stream of message) {
           for (let singleMessage of stream.messages) {
-            if(!singleMessage.message.event){
-              throw new Error("single message from redis stream is not available")
+            const msg = singleMessage.message;
+            if (msg.type === "create-order") {
+              const order: Order = {
+                orderId: msg.orderId ?? "",
+                userId: msg.userId ?? "",
+                marketId: msg.marketId ?? "",
+                marketType: (msg.orderType ?? "LIMIT") as marketType,
+                orderType: msg.orderType ?? "",
+                positionType: (msg.positionType ?? "LONG") as positionType,
+                status: (msg.status ?? "OPEN") as orderStatus,
+                price: msg.price ? parseFloat(msg.price) : undefined,
+                qty: msg.qty ? parseFloat(msg.qty) : 0,
+                leverage: msg.leverage ? parseFloat(msg.leverage) : 1,
+                remainingQty: msg.remainingQty ? parseFloat(msg.remainingQty) : 0,
+              };
+              this.createOrder(order);
             }
-            const payload:BackendEvents = JSON.parse(singleMessage.message.event) // i had an error here , i could have solved but i used GPT to solve it, just need to debug a little that had to do .event and the .parse it
-            if(payload.type === "create-order") {
-              this.createOrder(payload.data as Order);
-            }
-            else if(payload.type === "cancle-order") {
-              this.cancleOrder(payload.data as Order)
-            } else if(payload.type === "create-market"){
-              this.createMarket(payload.data as CreateMarket)
+            else if(msg.type === "cancle-order") {
+              const order: Order = {
+                orderId: msg.orderId ?? "",
+                userId: msg.userId ?? "",
+                marketId: msg.marketId ?? "",
+                marketType: "LIMIT",
+                orderType: msg.orderType ?? "",
+                positionType: (msg.positionType ?? "LONG") as positionType,
+                status: "OPEN",
+                price: msg.price ? parseFloat(msg.price) : undefined,
+                qty: msg.qty ? parseFloat(msg.qty) : 0,
+                leverage: msg.leverage ? parseFloat(msg.leverage) : 1,
+                remainingQty: 0,
+              };
+              this.cancleOrder(order)
+            } else if(msg.type === "create-market"){
+              const createMarket: CreateMarket = {
+                marketName: msg.marketName ?? "",
+                marketId: msg.marketId ?? "",
+                maxLeverage: msg.maxLeverage ?? "10",
+                symbol: msg.symbol ?? "",
+              };
+              this.createMarket(createMarket)
             }
           }
         }
@@ -39,11 +68,9 @@ export class EngineServer {
   }
 
   public createOrder(data:Order) {
-    console.log("data recieved in the engine server", data)
     let user = this.userManager.getUser(data.userId)
 
     if(!user){
-      console.log("adding new user")
       this.userManager.addUser(data.userId)
       user = this.userManager.getUser(data.userId)
     }

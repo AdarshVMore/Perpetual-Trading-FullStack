@@ -1,0 +1,11 @@
+// cancle order => DB pollar order update status
+// create market api integration 
+
+
+// in order.ts in routes, sending entire order Object is replaced with only userId and orderId ?
+// bunch of good practice updates in AppendData => user and market Exists ? + upsert instead of update + some changes based on schema
+// the creation of Cancle Order object in engineserver is wrong and fishy
+
+// for some reason 10 orders are getting placed on the first go
+
+// add logs on all steps of order been placed to matched to filled to everything.....

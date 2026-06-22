@@ -7,7 +7,7 @@
     "@types/bun": "latest"
   },
   "scripts": {
-    "dev": "bun --watch src/index.ts",
+    "dev": "bun --env-file=../../.env --watch src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun",
     "test": "echo 'Add test script here'",
     "lint": "echo 'Add lint script here'"
