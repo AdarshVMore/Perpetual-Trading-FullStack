@@ -23,13 +23,13 @@ export async function authUserMiddleware(req:Request, res:Response,next:NextFunc
         const verificationId = jwt.verify(token, userJWT_Secret) as {
             userId: string
         }
-        console.log("verificationId is , ", verificationId )
         req.userId = verificationId.userId
         next()
 
 
     }catch(err){
-        console.log(err)
+        res.status(401).json({message: "invalid token"})
+        return
     }
 
 
@@ -51,13 +51,15 @@ export async function authAdminMiddleware(req:Request, res:Response,next:NextFun
         return
     }
 
-    const verificationId = jwt.verify(token, adminJWT_Secret) as {
-        adminId:string
+    try {
+        const verificationId = jwt.verify(token, adminJWT_Secret) as {
+            adminId:string
+        }
+        req.adminId = verificationId.adminId
+        next()
+    } catch(err) {
+        res.status(401).json({message: "invalid admin token"})
+        return
     }
-
-    req.adminId = verificationId.adminId
-
-
-    next()
 
 }
