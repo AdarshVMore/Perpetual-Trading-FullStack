@@ -26,9 +26,8 @@ while (true) {
         }
         const payload = JSON.parse(singleMessage.message.data);
         const appendData = new AppendData(payload)
-        appendData.manipulateDB()
-      }
     }
+  }
   }
 }
 
