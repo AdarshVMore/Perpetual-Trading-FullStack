@@ -1,11 +1,14 @@
-import type { CreateMarket, Order, marketType, orderStatus, positionType } from "@shared-types/src";
+import type { CreateMarket, Order, dbPollerEvents, marketType, orderStatus, positionType } from "@shared-types/src";
 import type { MatchingEngine } from "./MatchingEngine";
 import type { RedisManager } from "./RedisManager";
 import type { RiskManager } from "./RiskManager";
 import type { UserManager } from "./UserManager";
 import type { OrderBook } from "./OrderBook";
+import { DBPoller } from "./DBPollerManager";
 
 export class EngineServer {
+  private dbpoller?: DBPoller;
+
   constructor(
     private matchingEngine: MatchingEngine,
     private userManager: UserManager,
@@ -13,6 +16,10 @@ export class EngineServer {
     private redisManager: RedisManager,
     private orderBook: OrderBook
   ) {}
+
+  setDBPoller(dbpoller: DBPoller) {
+    this.dbpoller = dbpoller;
+  }
 
   async start(){
      while (true) {
@@ -67,7 +74,7 @@ export class EngineServer {
     }
   }
 
-  public createOrder(data:Order) {
+  public createOrder(data: Order) {
     let user = this.userManager.getUser(data.userId)
 
     if(!user){
@@ -76,24 +83,37 @@ export class EngineServer {
     }
 
     const margin = this.riskManager.calculateMargin(data);
-    
     const valid = this.riskManager.validate(data.userId, margin);
 
     if(!user) {
       throw new Error("user not found")
     }
-        
-    if(valid) {
-      this.userManager.lockBalance(user, margin)
-      this.userManager.addOrder(data.userId, data)
+
+    if(!valid) {
+      console.log(`[EngineServer] insufficient margin for user ${data.userId}, order rejected`);
+      return;
     }
 
-    const response = this.matchingEngine.matchOrder(data)
+    this.userManager.lockBalance(user, margin)
+    this.userManager.addOrder(data.userId, data)
+    this.matchingEngine.matchOrder(data)
   }
 
   public cancleOrder(data: Order) {
     this.orderBook.cancleOrder(data)
+
+    // Notify DB poller to mark the order as cancelled
+    if (this.dbpoller && data.orderId) {
+      const cancelEvent: dbPollerEvents = {
+        type: "OrderUpdate",
+        payload: {
+          method: "PUT",
+          data: { ...data, status: "CANCLE" },
+        },
+      };
+      void this.dbpoller.sendToDBPoller(cancelEvent);
+    }
   }
 
-  public createMarket(data: CreateMarket) {}
+  public createMarket(_data: CreateMarket) {}
 }
