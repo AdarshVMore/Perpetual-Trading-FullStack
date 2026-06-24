@@ -1,14 +1,12 @@
 import { Router } from "express";
 import type { Response, Request } from "express";
-import { authUserMiddleware, authAdminMiddleware } from "../middleware/auth";
+import { authAdminMiddleware } from "../middleware/auth";
 import { createRedisConnection } from "@redis-client";
 import type { RedisClientType } from "redis";
 import db from "@prisma-db";
 import crypto from "crypto";
 import {
   CreateOrderSchema,
-  getFillsSchema,
-  getOrderSchema,
   cancleOrdersSchema,
   createMarketSchema,
 } from "@shared-types";
@@ -22,89 +20,82 @@ export async function connectRedisBackend() {
   return redisClient;
 }
 
-const redisStreamName = process.env.REDIS_STREAM_NAME;
-
 connectRedisBackend();
-routes.post(
-  "/create-order",
-  authUserMiddleware,
-  async (req: Request, res: Response) => {
-    console.log("recieved the order...");
-    const result = CreateOrderSchema.safeParse(req.body);
-    if (!result.success) {
-      return res.status(400).json({
-        error: result.error.flatten(),
-      });
-    }
 
-    const { userId, price, qty, marketId, orderType, positionType, leverage } =
-      result.data;
-
-    if (!redisClient) {
-      res.status(400).json({ message: "unable to start redis" });
-      return;
-    }
-
-    const reqId = crypto.randomUUID();
-
-    const res1 = await redisClient.XADD("send-to-engine", "*", {
-      type: "create-order",
-      reqId: reqId,
-      orderId: "",
-      userId: userId,
-      marketId: marketId,
-      qty: qty.toString(),
-      price: price.toString(),
-      leverage: leverage.toString(),
-      remainingQty: "0",
-      orderType: orderType,
-      positionType: positionType,
-      status: "OPEN",
+routes.post("/create-order", async (req: Request, res: Response) => {
+  console.log("recieved the order...");
+  const result = CreateOrderSchema.safeParse(req.body);
+  if (!result.success) {
+    return res.status(400).json({
+      error: result.error.flatten(),
     });
+  }
 
-    res
-      .status(200)
-      .json({ message: `order Accepted here is you queue number ${res1}` });
-  },
-);
-routes.post(
-  "/cancle-order/:orderId",
-  authUserMiddleware,
-  async (req: Request, res: Response) => {
-    const orderId = String(req.params.orderId ?? "");
-    if (!orderId) {
-      return res.status(400).json({ message: "orderId required" });
-    }
+  const { userId, price, qty, marketId, orderType, positionType, leverage } =
+    result.data;
 
-    const result = cancleOrdersSchema.safeParse(req.body);
-    if (!result.success) {
-      return res.status(400).json({
-        error: result.error.flatten(),
-      });
-    }
+  if (!redisClient) {
+    res.status(400).json({ message: "unable to start redis" });
+    return;
+  }
 
-    if (!redisClient) {
-      res.status(400).json({ message: "unable to start redis" });
-      return;
-    }
+  const orderId = crypto.randomUUID();
 
-    const { userId, marketId, price, qty, leverage, orderType, positionType } =
-      result.data;
+  const res1 = await redisClient.XADD("send-to-engine", "*", {
+    type: "create-order",
+    reqId: crypto.randomUUID(),
+    orderId: orderId,
+    userId: userId,
+    marketId: marketId,
+    qty: qty.toString(),
+    price: price.toString(),
+    leverage: leverage.toString(),
+    remainingQty: qty.toString(),
+    orderType: orderType,
+    positionType: positionType,
+    status: "OPEN",
+  });
 
-    await redisClient.XADD("send-to-engine", "*", {
-      type: "cancle-order",
-      orderId: orderId,
-      userId: userId,
-      marketId: marketId,
-      price: price.toString(),
-      qty: qty.toString(),
-      leverage: leverage.toString(),
-      orderType: orderType,
-      positionType: positionType,
+  res
+    .status(200)
+    .json({ message: `order Accepted`, orderId, queueId: res1 });
+});
+
+routes.post("/cancle-order/:orderId", async (req: Request, res: Response) => {
+  const orderId = String(req.params.orderId ?? "");
+  if (!orderId) {
+    return res.status(400).json({ message: "orderId required" });
+  }
+
+  const result = cancleOrdersSchema.safeParse(req.body);
+  if (!result.success) {
+    return res.status(400).json({
+      error: result.error.flatten(),
     });
-    res.status(200).json({ message: "request accepted to cancle the order" });
-  },
-);
+  }
+
+  if (!redisClient) {
+    res.status(400).json({ message: "unable to start redis" });
+    return;
+  }
+
+  const { userId, marketId, price, positionType, qty, leverage, orderType } =
+    result.data;
+
+  await redisClient.XADD("send-to-engine", "*", {
+    type: "cancle-order",
+    orderId: orderId,
+    userId: userId,
+    marketId: marketId,
+    price: price.toString(),
+    qty: qty.toString(),
+    leverage: leverage.toString(),
+    orderType: orderType,
+    positionType: positionType,
+  });
+  res.status(200).json({ message: "request accepted to cancle the order" });
+});
+
 routes.post(
   "/create-market",
   authAdminMiddleware,
@@ -133,48 +124,39 @@ routes.post(
     res.status(200).json({ message: `recieved ${res1}` });
   },
 );
-routes.get(
-  "/get-orders/:marketId",
-  authUserMiddleware,
-  async (req: Request, res: Response) => {
-    const marketId = req.params.marketId;
-    if (typeof marketId !== "string") {
-      return res
-        .status(400)
-        .json({ message: "marketId required for get-orders api via marketId" });
-    }
-    const userId = req.userId;
-    const orders = await db.orders.findMany({ where: { marketId, userId } });
-    res.status(200).json({ orders: orders });
-  },
-);
-routes.get(
-  "/get-order/:orderId",
-  authUserMiddleware,
-  async (req: Request, res: Response) => {
-    const orderId = req.params.orderId;
-    if (typeof orderId !== "string") {
-      return res.status(400).json({
-        message: "orderId as string is required fir get-order via orderId",
-      });
-    }
-    const order = await db.orders.findUnique({ where: { id: orderId } });
-    res.status(200).json({ order: order });
-  },
-);
-routes.get(
-  "/get-fills/:marketId",
-  authUserMiddleware,
-  async (req: Request, res: Response) => {
-    const marketId = req.params.marketId;
-    if (typeof marketId !== "string") {
-      return res
-        .status(400)
-        .json({ message: "marketId is required to get the fills" });
-    }
-    const fills = await db.markets.findMany({ where: { id: marketId } });
-    res.status(200).json({ fills: fills });
-  },
-);
+
+routes.get("/get-orders/:marketId", async (req: Request, res: Response) => {
+  const marketId = req.params.marketId;
+  if (typeof marketId !== "string") {
+    return res
+      .status(400)
+      .json({ message: "marketId required for get-orders api via marketId" });
+  }
+  const userId = req.query.userId as string | undefined;
+  const orders = await db.orders.findMany({ where: { marketId, ...(userId ? { userId } : {}) } });
+  res.status(200).json({ orders: orders });
+});
+
+routes.get("/get-order/:orderId", async (req: Request, res: Response) => {
+  const orderId = req.params.orderId;
+  if (typeof orderId !== "string") {
+    return res.status(400).json({
+      message: "orderId as string is required for get-order via orderId",
+    });
+  }
+  const order = await db.orders.findUnique({ where: { id: orderId } });
+  res.status(200).json({ order: order });
+});
+
+routes.get("/get-fills/:marketId", async (req: Request, res: Response) => {
+  const marketId = req.params.marketId;
+  if (typeof marketId !== "string") {
+    return res
+      .status(400)
+      .json({ message: "marketId is required to get the fills" });
+  }
+  const fills = await db.fills.findMany({ where: { marketId } });
+  res.status(200).json({ fills: fills });
+});
 
 export default routes;
