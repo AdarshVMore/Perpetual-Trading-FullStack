@@ -19,6 +19,7 @@ export type UserPositions = {
   maintainanceMargin: number;
   liquidationPrice: number;
   pnL: number;
+  realisedPnL: number;
   entryPrice:number;
   averagePrice: number;
   unrealisedPnL: number;
@@ -81,6 +82,8 @@ export interface OrderBooks {
 export interface Fills {
   maker: string;
   taker: string;
+  makerOrderId: string;
+  takerOrderId: string;
   marketId: string;
   qty: number;
   price: number;
