@@ -3,12 +3,10 @@ import type {
   Fills,
   Order,
   positionType,
-  User,
   UserPositions,
 } from "@shared-types";
 import type { FillManager } from "./FillManager";
 import type { OrderBook } from "./OrderBook";
-import type { LinkList } from "js-sdsl";
 import type { PositionManager } from "./PositionManager";
 import type { RiskManager } from "./RiskManager";
 import type { RedisManager } from "./RedisManager";
@@ -73,6 +71,12 @@ export class MatchingEngine {
         break;
       }
 
+      // LIMIT orders only match at a favorable price
+      if (order.marketType === "LIMIT" && order.price !== undefined) {
+        if (order.positionType === "LONG" && bestPrice > order.price) break;
+        if (order.positionType === "SHORT" && bestPrice < order.price) break;
+      }
+
       const { tradeQty, restingOrder } = this.orderBook.updateRemainingQty(
         order,
         bestPrice,
@@ -83,6 +87,8 @@ export class MatchingEngine {
       const createFillObject: Fills = {
         maker: restingOrder.userId,
         taker: order.userId,
+        makerOrderId: restingOrder.orderId,
+        takerOrderId: order.orderId,
         marketId: order.marketId,
         qty: tradeQty,
         price: bestPrice,
@@ -148,6 +154,7 @@ export class MatchingEngine {
         maintainanceMargin: takerMaintainanceMargin,
         liquidationPrice: TakerLiquidationPrice,
         pnL: 0,
+        realisedPnL: 0,
         entryPrice: bestPrice,
         averagePrice: bestPrice,
         unrealisedPnL: 0,
@@ -164,6 +171,7 @@ export class MatchingEngine {
         maintainanceMargin: makerMaintainanceMargin,
         liquidationPrice: MakerLiquidationPrice,
         pnL: 0,
+        realisedPnL: 0,
         entryPrice: bestPrice,
         averagePrice: bestPrice,
         unrealisedPnL: 0,

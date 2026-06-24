@@ -68,15 +68,17 @@ export class LiquidationManager {
     }
     for (let position of positions) {
       if (position.marketId === marketId) {
+        // Close position by placing an order in the OPPOSITE direction
+        const closePositionType = position.positionType === "LONG" ? "SHORT" : "LONG";
         const order: Order = {
           orderId: Math.random().toString(),
           userId: userId,
           marketId: marketId,
           marketType: "MARKET",
           orderType: "MARKET",
-          positionType: position.positionType,
+          positionType: closePositionType,
           status: "OPEN",
-          price: position.averagePrice,
+          price: undefined,
           qty: position.qty,
           leverage: position.leverage,
           remainingQty: position.qty,
