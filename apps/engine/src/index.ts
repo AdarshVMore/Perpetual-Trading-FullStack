@@ -1,9 +1,4 @@
-import type {
-  dbPollerEvent,
-  dbPollerEvents,
-  dbPollerPayload,
-  User,
-} from "@shared-types";
+import type { User } from "@shared-types";
 import { EngineServer } from "./classes/EngineServer";
 import { OrderBook } from "./classes/OrderBook";
 import { UserManager } from "./classes/UserManager";
@@ -15,7 +10,6 @@ import { RedisManager } from "./classes/RedisManager";
 import { DBPoller } from "./classes/DBPollerManager";
 import { LiquidationManager } from "./classes/LiquidationManager";
 
-import db from "../../../packages/prisma-db";
 const users = new Map<string, User>();
 const userIds: string[] = [];
 
@@ -51,6 +45,7 @@ await redisManager.connect();
 const dbPoller = new DBPoller(redisManager.getPublisherClient());
 matchingEngine.setDBPoller(dbPoller)
 positionManager.setDBPoller(dbPoller)
+engineServer.setDBPoller(dbPoller)
 
 await liquidationManager.init()
 void engineServer.start().catch((error) => {
