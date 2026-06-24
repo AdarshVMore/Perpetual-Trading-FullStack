@@ -20,6 +20,7 @@ function isFill(data: DbPollerData): data is Fills {
 function mapOrderStatus(status: Order["status"]): OrderStatus {
   if (status === "FILLED") return "FILLED";
   if (status === "PARTIAL_FILLED") return "PARTIALLY_FILLED";
+  if (status === "CANCLE") return "CANCLED";
   return "OPEN";
 }
 
@@ -72,7 +73,7 @@ function getPositionData(incommingData: CustomPosition) {
     margin: incommingData.position.margin,
     maintainanceMargin: incommingData.position.maintainanceMargin,
     liquidationPrice: incommingData.position.liquidationPrice,
-    realisedPnL: incommingData.position.pnL,
+    realisedPnL: incommingData.position.realisedPnL,
     entryPrice: incommingData.position.entryPrice,
     averagePrice: incommingData.position.averagePrice,
     unrealisedPnL: incommingData.position.unrealisedPnL,
@@ -110,8 +111,6 @@ export class AppendData {
 
     const incommingData = payload.payload.data;
     const positionData = getPositionData(incommingData);
-    // await ensureUserExists(incommingData.userId);
-    // await ensureMarketExists(incommingData.position.marketId);
 
     if (payload.payload.method === "POST") {
       await db.positions.create({
@@ -133,12 +132,12 @@ export class AppendData {
 
     if(payload.payload.method === "DELETE"){
       await db.positions.deleteMany({
-      where: {
-        userId: incommingData.userId,
-        marketId: incommingData.position.marketId,
-      },
-    });
-    return
+        where: {
+          userId: incommingData.userId,
+          marketId: incommingData.position.marketId,
+        },
+      });
+      return;
     }
   }
 
@@ -154,7 +153,7 @@ export class AppendData {
     if (payload.payload.method === "POST") {
       await db.orders.upsert({
         where: { id: order.orderId },
-        create: getOrderData(order),
+        create: { id: order.orderId, ...getOrderData(order) },
         update: getOrderData(order),
       });
       return;
@@ -163,7 +162,7 @@ export class AppendData {
     if (payload.payload.method === "PUT") {
       await db.orders.upsert({
         where: { id: order.orderId },
-        create: getOrderData(order),
+        create: { id: order.orderId, ...getOrderData(order) },
         update: getOrderData(order),
       });
       return;
@@ -171,12 +170,9 @@ export class AppendData {
 
     if (payload.payload.method === "DELETE") {
       await db.orders.delete({
-      where: {
-        id: order.orderId,
-      },
-    });
-      return
-
+        where: { id: order.orderId },
+      });
+      return;
     }
   }
 
@@ -194,30 +190,31 @@ export class AppendData {
     await ensureUserExists(fill.maker);
     await ensureMarketExists(fill.marketId);
 
-    const order = await db.orders.findFirst({
-      where: {
-        marketId: fill.marketId,
+    // Ensure taker's order exists in DB before creating fill
+    await db.orders.upsert({
+      where: { id: fill.takerOrderId },
+      create: {
+        id: fill.takerOrderId,
         userId: fill.taker,
+        marketId: fill.marketId,
+        qty: fill.qty,
+        leverage: 1,
+        orderType: "MARKET",
+        orderStatus: "FILLED",
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      update: {},
     });
 
-    if (!order) {
-      throw new Error("No order found for fill");
-    }
-
-    const remainingQty = Math.max(order.qty - fill.qty, 0);
+    const remainingQty = 0;
 
     await db.fills.create({
       data: {
         userId: fill.taker,
         marketId: fill.marketId,
-        orderId: order.id,
+        orderId: fill.takerOrderId,
         makerId: fill.maker,
         takerId: fill.taker,
-        originalQty: order.qty,
+        originalQty: fill.qty,
         filledQty: fill.qty,
         remainingQty,
       },
