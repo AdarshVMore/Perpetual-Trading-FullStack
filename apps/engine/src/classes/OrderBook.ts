@@ -1,10 +1,8 @@
 import { OrderedMap, LinkList } from "js-sdsl";
 import type {
-  marketType,
   Order,
   OrderBooks,
   SingleOrderBook,
-  User,
   positionType,
 } from "@shared-types";
 
@@ -90,7 +88,7 @@ export class OrderBook {
     if (!restingOrder) {
       throw new Error("there is no .front() in the queue");
     }
-    const tradeQty = Math.min(data.qty, restingOrder?.remainingQty);
+    const tradeQty = Math.min(data.remainingQty, restingOrder?.remainingQty);
     data.remainingQty -= tradeQty;
     restingOrder.remainingQty -= tradeQty;
     if (restingOrder.remainingQty === 0) {
