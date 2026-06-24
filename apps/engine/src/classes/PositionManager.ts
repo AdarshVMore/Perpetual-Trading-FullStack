@@ -1,5 +1,4 @@
 import type { dbPollerEvents, UserPositions } from "@shared-types";
-import type { RiskManager } from "./RiskManager";
 import type { UserManager } from "./UserManager";
 import { DBPoller } from "./DBPollerManager";
 import type { RedisManager } from "./RedisManager";
@@ -79,18 +78,18 @@ export class PositionManager {
 
     if (!this.dbpoller) {
       throw new Error(
-        "there is no DBPoller to send adta to in manipulatePositions",
+        "there is no DBPoller to send data to in manipulatePositions",
       );
     }
 
-    const createDBPollerTakerPositionObject: dbPollerEvents = {
+    const createDBPollerPositionObject: dbPollerEvents = {
       type: "PositionUpdated",
       payload: {
         method: isCancle ? "DELETE" : "PUT",
         data: { userId: userId, position: finalPosition },
       },
     };
-    this.dbpoller?.sendToDBPoller(createDBPollerTakerPositionObject);
+    this.dbpoller?.sendToDBPoller(createDBPollerPositionObject);
     this.publishPositionUpdate(userId, finalPosition);
   }
 
@@ -139,6 +138,7 @@ export class PositionManager {
       existingPosition.margin * (position.qty / existingQty);
     existingPosition.qty -= position.qty;
     existingPosition.pnL = pnl;
+    existingPosition.realisedPnL += pnl;
     existingPosition.margin -= unlockMargin;
     user.collateral.availabe += pnl + unlockMargin;
     user.collateral.locked -= unlockMargin;
@@ -161,18 +161,14 @@ export class PositionManager {
     if (!user) {
       throw new Error("user not found in canclePosition");
     }
+    existingPosition.realisedPnL += PnL;
     user.collateral.availabe =
       user.collateral.availabe + PnL + existingPosition.unrealisedPnL;
     user.collateral.locked = user.collateral.locked - existingPosition.margin;
 
-    for (let singlePosition of user.positions) {
-      if (singlePosition.marketId === position.marketId) {
-        user.positions = user.positions.filter(
-          (item) => item != singlePosition,
-        );
-        break;
-      }
-    }
+    user.positions = user.positions.filter(
+      (item) => item.marketId !== position.marketId,
+    );
 
     return existingPosition;
   }
@@ -196,6 +192,7 @@ export class PositionManager {
     existingPosition.averagePrice = position.averagePrice;
     existingPosition.margin = position.margin;
     existingPosition.pnL += PnL;
+    existingPosition.realisedPnL += PnL;
     if (!user) {
       throw new Error("user not found in reverse Position");
     }
@@ -216,13 +213,9 @@ export class PositionManager {
       price: position.entryPrice,
       qty: position.qty,
       pnl: position.pnL,
-      realisedPnL: position.pnL,
+      realisedPnL: position.realisedPnL,
     };
 
     void this.redisManager.publish(channel, createPositionToPublish);
   }
 }
-
-// initial      10      @100       long            m=1000/lev      pnl=0
-// incomming    13      @90        short           m=1070/lev      pnl=0
-// final        3       @          short           m=              pnl=30

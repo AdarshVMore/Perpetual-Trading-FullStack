@@ -71,7 +71,6 @@ export class MatchingEngine {
         break;
       }
 
-      // LIMIT orders only match at a favorable price
       if (order.marketType === "LIMIT" && order.price !== undefined) {
         if (order.positionType === "LONG" && bestPrice > order.price) break;
         if (order.positionType === "SHORT" && bestPrice < order.price) break;
