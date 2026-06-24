@@ -5,11 +5,11 @@ export class UserManager {
   constructor(public users: Map<string, User>, public userIds:string[]) {
   }
 
-  addUser(userId: string) {
+  addUser(userId: string, initialBalance = 1_000_000) {
     this.users.set(userId, {
       userId: userId,
       collateral: {
-        availabe: 0,
+        availabe: initialBalance,
         locked: 0,
       },
       positions: [],
