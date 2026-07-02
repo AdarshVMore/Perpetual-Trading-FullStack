@@ -49,6 +49,7 @@ export class WebsocketManager {
         const channel = this.subscriptionManager.createChannel(
           message.channel,
           message.market,
+          message.userId,
         );
         const channelIsEmpty = this.subscriptionManager.unsubscribeChannel(
           channel,

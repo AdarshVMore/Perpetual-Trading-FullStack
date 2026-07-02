@@ -1,6 +1,5 @@
 
 import type {Order, User} from "@shared-types"
-import prisma from "@prisma-db"
 import { UserManager } from "./UserManager"
 import type { OrderBook } from "./OrderBook"
 import type { PositionType } from "@prisma-db"
@@ -8,7 +7,6 @@ import type { PositionType } from "@prisma-db"
 export class RiskManager{
 
     private maintainanceMarginPercent = 5
-    
 
     constructor(private userManager:UserManager, private orderBookManager:OrderBook){}
 
@@ -27,16 +25,24 @@ export class RiskManager{
         return (price * data.qty) / data.leverage
     }
 
-    validate(userId:string, margin:number){
+    calculateMarginForQty(data: Order, qty: number, price?: number) {
+        let fillPrice = price ?? data.price;
+        if (!fillPrice || data.marketType === "MARKET") {
+            const book = this.orderBookManager.getBook(data.marketId);
+            if (book) {
+                fillPrice = this.orderBookManager.getBestPrice(data.positionType, book) ?? book.lastTradedPrice;
+            }
+        }
+        if (!fillPrice) return 0;
+        return (fillPrice * qty) / data.leverage;
+    }
+
+    validate(userId:string, margin:number): boolean {
         const user = this.userManager.getUser(userId)
         if(!user){
             throw new Error("user not found for validation in riskManager")
         }
-        if(margin <= user.collateral.availabe){
-            return true
-        } else if(margin > user.collateral.availabe) {
-            return false
-        }
+        return margin <= user.collateral.availabe
     }
 
     calculateMaintainanceMargin(margin:number){

@@ -2,6 +2,8 @@ import type { Order } from "@shared-types";
 import type { EngineServer } from "./EngineServer";
 import type { RedisManager } from "./RedisManager";
 import type { UserManager } from "./UserManager";
+import type { OrderBook } from "./OrderBook";
+import type { PositionManager } from "./PositionManager";
 import type { tickerUpdates } from "@shared-types/src/ws/ws.types";
 
 export class LiquidationManager {
@@ -9,11 +11,15 @@ export class LiquidationManager {
     private userManager: UserManager,
     private engineServe: EngineServer,
     private redisManager: RedisManager,
+    private orderBook: OrderBook,
+    private positionManager: PositionManager,
   ) {}
 
   async init(){
     await this.redisManager.listenToBinanceWS(({marketId, indexPrice})=>{
+      this.orderBook.updateIndexPrice(marketId, indexPrice);
       this.publishTickerUpdate(marketId, indexPrice);
+      this.updateUnrealisedPnL(marketId, indexPrice);
       this.start(marketId, indexPrice)
     })
   }
@@ -28,8 +34,24 @@ export class LiquidationManager {
     void this.redisManager.publish(channel, tickerEvent);
   }
 
+  private updateUnrealisedPnL(marketId: string, indexPrice: number) {
+    const users = this.userManager.userIds;
+    for (let userId of users) {
+      const userData = this.userManager.getUser(userId);
+      if (!userData) continue;
+      for (let position of userData.positions) {
+        if (position.marketId !== marketId) continue;
+        if (position.positionType === "LONG") {
+          position.unrealisedPnL = (indexPrice - position.averagePrice) * position.qty;
+        } else {
+          position.unrealisedPnL = (position.averagePrice - indexPrice) * position.qty;
+        }
+        this.positionManager.publishPositionUpdate(userId, position);
+      }
+    }
+  }
+
   start(marketId: string, indexPrice: number) {
-    
     const users = this.userManager.userIds;
     for (let user of users) {
       let userData = this.userManager.getUser(user);
@@ -44,7 +66,7 @@ export class LiquidationManager {
           ) {
             const order = this.autoLiquiadte(user, marketId);
             if (order) {
-              this.engineServe.createOrder(order);
+              this.engineServe.createLiquidationOrder(order);
             }
           }
           if (
@@ -53,7 +75,7 @@ export class LiquidationManager {
           ) {
             const order = this.autoLiquiadte(user, marketId);
             if (order) {
-              this.engineServe.createOrder(order);
+              this.engineServe.createLiquidationOrder(order);
             }
           }
         }
@@ -70,7 +92,7 @@ export class LiquidationManager {
       if (position.marketId === marketId) {
         const closePositionType = position.positionType === "LONG" ? "SHORT" : "LONG";
         const order: Order = {
-          orderId: Math.random().toString(),
+          orderId: crypto.randomUUID(),
           userId: userId,
           marketId: marketId,
           marketType: "MARKET",

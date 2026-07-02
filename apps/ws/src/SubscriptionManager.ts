@@ -39,6 +39,9 @@ export class SubcriptionManager {
     if (channel === "position" && userId) {
       return `${channel}:${userId}:${market}`;
     }
+    if (channel === "order" && userId) {
+      return `${channel}:${userId}:${market}`;
+    }
     return `${channel}:${market}`;
   }
 

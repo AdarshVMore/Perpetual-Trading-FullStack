@@ -5,7 +5,7 @@ import {LinkList, OrderedMap} from "js-sdsl"
 export type positionType = 'LONG' | 'SHORT' ;
 export type marketType = "MARKET" | "LIMIT"
 export type orderStatus = "OPEN" | "FILLED" | "PARTIAL_FILLED" | "CANCLE"
-export type dbPollerEvent = "OrderUpdate" | "TradeExecuted" | "FillsCreated" | "PositionUpdated"
+export type dbPollerEvent = "OrderUpdate" | "TradeExecuted" | "FillsCreated" | "PositionUpdated" | "BalanceUpdated" | "MarketCreated"
 
 
 // ====================================================  USERS   =========================================================
@@ -116,9 +116,15 @@ export interface dbPollerEvents {
   payload: dbPollerPayload
 }
 
+export interface CustomBalance {
+  userId: string;
+  availableBalance: number;
+  lockedBalance: number;
+}
+
 export interface dbPollerPayload {
   method: "POST" | "PUT" | "DELETE",
-  data: Order | CustomPosition | Fills
+  data: Order | CustomPosition | Fills | CustomBalance | CreateMarket
 }
 
 // ====================================================  Zod =======================================================
@@ -131,7 +137,8 @@ export {
   getOrderSchema,
   getFillsSchema,
   cancleOrdersSchema,
-  createMarketSchema
+  createMarketSchema,
+  addBalanceSchema,
 } from "./zod/zod.validation"
 
 export type {
