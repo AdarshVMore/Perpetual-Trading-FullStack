@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken"
 import type { Response, Request, NextFunction } from "express"
+import db from "@prisma-db"
 
 const userJWT_Secret = "user_secret"
 const adminJWT_Secret = "admin_secret"
@@ -26,14 +27,10 @@ export async function authUserMiddleware(req:Request, res:Response,next:NextFunc
         req.userId = verificationId.userId
         next()
 
-
     }catch(err){
         res.status(401).json({message: "invalid token"})
         return
     }
-
-
-
 }
 
 export async function authAdminMiddleware(req:Request, res:Response,next:NextFunction){
@@ -53,13 +50,17 @@ export async function authAdminMiddleware(req:Request, res:Response,next:NextFun
 
     try {
         const verificationId = jwt.verify(token, adminJWT_Secret) as {
-            adminId:string
+            userId: string
         }
-        req.adminId = verificationId.adminId
+        const user = await db.user.findUnique({ where: { id: verificationId.userId } });
+        if (!user || user.role !== "admin") {
+            res.status(401).json({message: "invalid admin token"})
+            return
+        }
+        req.adminId = verificationId.userId
         next()
     } catch(err) {
         res.status(401).json({message: "invalid admin token"})
         return
     }
-
 }

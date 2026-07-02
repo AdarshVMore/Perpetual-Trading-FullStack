@@ -33,6 +33,7 @@ model Fills {
   makerId      String
   market       Markets  @relation(fields: [marketId], references: [id])
   takerId      String
+  price        Float
   originalQty  Float
   filledQty    Float
   remainingQty Float
@@ -41,20 +42,22 @@ model Fills {
 }
 
 model Orders {
-  id          String      @id @default(cuid())
-  userId      String
-  user        User        @relation(fields: [userId], references: [id])
-  price       Float?
-  qty         Float
-  leverage    Int
-  margin      Float?
-  marketId    String
-  market      Markets     @relation(fields: [marketId], references: [id])
-  orderType   OrderType
-  fills       Fills[]
-  orderStatus OrderStatus
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id           String       @id @default(cuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id])
+  price        Float?
+  qty          Float
+  remainingQty Float        @default(0)
+  leverage     Int
+  margin       Float?
+  marketId     String
+  market       Markets      @relation(fields: [marketId], references: [id])
+  positionType PositionType
+  orderType    OrderType
+  fills        Fills[]
+  orderStatus  OrderStatus
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 }
 
 model Positions {

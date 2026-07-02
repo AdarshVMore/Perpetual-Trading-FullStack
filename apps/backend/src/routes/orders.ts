@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Response, Request } from "express";
-import { authAdminMiddleware } from "../middleware/auth";
+import { authAdminMiddleware, authUserMiddleware } from "../middleware/auth";
 import { createRedisConnection } from "@redis-client";
 import type { RedisClientType } from "redis";
 import db from "@prisma-db";
@@ -22,8 +22,7 @@ export async function connectRedisBackend() {
 
 connectRedisBackend();
 
-routes.post("/create-order", async (req: Request, res: Response) => {
-  console.log("recieved the order...");
+routes.post("/create-order", authUserMiddleware, async (req: Request, res: Response) => {
   const result = CreateOrderSchema.safeParse(req.body);
   if (!result.success) {
     return res.status(400).json({
@@ -31,7 +30,8 @@ routes.post("/create-order", async (req: Request, res: Response) => {
     });
   }
 
-  const { userId, price, qty, marketId, orderType, positionType, leverage } =
+  const userId = req.userId!;
+  const { price, qty, marketId, orderType, positionType, leverage } =
     result.data;
 
   if (!redisClient) {
@@ -61,7 +61,7 @@ routes.post("/create-order", async (req: Request, res: Response) => {
     .json({ message: `order Accepted`, orderId, queueId: res1 });
 });
 
-routes.post("/cancle-order/:orderId", async (req: Request, res: Response) => {
+routes.post("/cancle-order/:orderId", authUserMiddleware, async (req: Request, res: Response) => {
   const orderId = String(req.params.orderId ?? "");
   if (!orderId) {
     return res.status(400).json({ message: "orderId required" });
@@ -79,7 +79,8 @@ routes.post("/cancle-order/:orderId", async (req: Request, res: Response) => {
     return;
   }
 
-  const { userId, marketId, price, positionType, qty, leverage, orderType } =
+  const userId = req.userId!;
+  const { marketId, price, positionType, qty, leverage, orderType } =
     result.data;
 
   await redisClient.XADD("send-to-engine", "*", {
@@ -125,19 +126,23 @@ routes.post(
   },
 );
 
-routes.get("/get-orders/:marketId", async (req: Request, res: Response) => {
+routes.get("/get-markets", async (_req: Request, res: Response) => {
+  const markets = await db.markets.findMany();
+  res.status(200).json({ markets });
+});
+
+routes.get("/get-orders/:marketId", authUserMiddleware, async (req: Request, res: Response) => {
   const marketId = req.params.marketId;
   if (typeof marketId !== "string") {
     return res
       .status(400)
       .json({ message: "marketId required for get-orders api via marketId" });
   }
-  const userId = req.query.userId as string | undefined;
-  const orders = await db.orders.findMany({ where: { marketId, ...(userId ? { userId } : {}) } });
+  const orders = await db.orders.findMany({ where: { marketId, userId: req.userId } });
   res.status(200).json({ orders: orders });
 });
 
-routes.get("/get-order/:orderId", async (req: Request, res: Response) => {
+routes.get("/get-order/:orderId", authUserMiddleware, async (req: Request, res: Response) => {
   const orderId = req.params.orderId;
   if (typeof orderId !== "string") {
     return res.status(400).json({
@@ -145,17 +150,31 @@ routes.get("/get-order/:orderId", async (req: Request, res: Response) => {
     });
   }
   const order = await db.orders.findUnique({ where: { id: orderId } });
+  if (order && order.userId !== req.userId) {
+    return res.status(403).json({ message: "not authorized" });
+  }
   res.status(200).json({ order: order });
 });
 
-routes.get("/get-fills/:marketId", async (req: Request, res: Response) => {
+routes.get("/get-positions/:marketId", authUserMiddleware, async (req: Request, res: Response) => {
+  const marketId = req.params.marketId;
+  if (typeof marketId !== "string") {
+    return res.status(400).json({ message: "marketId required" });
+  }
+  const positions = await db.positions.findMany({
+    where: { marketId, userId: req.userId, status: "OPEN" },
+  });
+  res.status(200).json({ positions });
+});
+
+routes.get("/get-fills/:marketId", authUserMiddleware, async (req: Request, res: Response) => {
   const marketId = req.params.marketId;
   if (typeof marketId !== "string") {
     return res
       .status(400)
       .json({ message: "marketId is required to get the fills" });
   }
-  const fills = await db.fills.findMany({ where: { marketId } });
+  const fills = await db.fills.findMany({ where: { marketId, userId: req.userId } });
   res.status(200).json({ fills: fills });
 });
 

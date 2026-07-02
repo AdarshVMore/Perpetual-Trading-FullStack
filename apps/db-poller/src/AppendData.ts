@@ -1,9 +1,9 @@
 import db from "@prisma-db";
 import type { OrderStatus, OrderType } from "@prisma-db";
 import type { PositionStatus } from "@prisma-db";
-import type { CustomPosition, dbPollerEvents, Fills, Order } from "@shared-types/src";
+import type { CustomBalance, CustomPosition, CreateMarket, dbPollerEvents, Fills, Order } from "@shared-types/src";
 
-type DbPollerData = Order | CustomPosition | Fills;
+type DbPollerData = Order | CustomPosition | Fills | CustomBalance | CreateMarket;
 
 function isCustomPosition(data: DbPollerData): data is CustomPosition {
   return "position" in data;
@@ -17,6 +17,14 @@ function isFill(data: DbPollerData): data is Fills {
   return "maker" in data && "taker" in data;
 }
 
+function isBalance(data: DbPollerData): data is CustomBalance {
+  return "availableBalance" in data && "lockedBalance" in data;
+}
+
+function isMarket(data: DbPollerData): data is CreateMarket {
+  return "marketName" in data && "maxLeverage" in data;
+}
+
 function mapOrderStatus(status: Order["status"]): OrderStatus {
   if (status === "FILLED") return "FILLED";
   if (status === "PARTIAL_FILLED") return "PARTIALLY_FILLED";
@@ -25,14 +33,21 @@ function mapOrderStatus(status: Order["status"]): OrderStatus {
 }
 
 async function ensureUserExists(userId: string) {
-  await db.user.upsert({
-    where: { id: userId },
-    update: {},
-    create: {
+  const existing = await db.user.findUnique({ where: { id: userId } });
+  if (existing) return;
+
+  await db.user.create({
+    data: {
       id: userId,
       email: `${userId}@placeholder.com`,
       password: "placeholder",
-      role: "user"
+      role: "user",
+      userBalance: {
+        create: {
+          availableBalance: 1_000_000,
+          lockedBalance: 0,
+        },
+      },
     },
   });
 }
@@ -55,9 +70,11 @@ function getOrderData(order: Order) {
     userId: order.userId,
     price: order.price ?? 0,
     qty: order.qty,
+    remainingQty: order.remainingQty,
     leverage: order.leverage,
     margin: ((order.price ?? 0) * order.qty) / order.leverage,
     marketId: order.marketId,
+    positionType: order.positionType,
     orderType: order.marketType as OrderType,
     orderStatus: mapOrderStatus(order.status),
   };
@@ -101,7 +118,61 @@ export class AppendData {
 
     if (payload.type === "PositionUpdated") {
       await this.position(payload);
+      return;
     }
+
+    if (payload.type === "BalanceUpdated") {
+      await this.balance(payload);
+      return;
+    }
+
+    if (payload.type === "MarketCreated") {
+      await this.market(payload);
+    }
+  }
+
+  async balance(payload: dbPollerEvents) {
+    if (!isBalance(payload.payload.data)) {
+      throw new Error("BalanceUpdated payload must contain balance data");
+    }
+
+    const data = payload.payload.data;
+    await ensureUserExists(data.userId);
+
+    await db.userBalance.upsert({
+      where: { userId: data.userId },
+      create: {
+        userId: data.userId,
+        availableBalance: data.availableBalance,
+        lockedBalance: data.lockedBalance,
+      },
+      update: {
+        availableBalance: data.availableBalance,
+        lockedBalance: data.lockedBalance,
+      },
+    });
+  }
+
+  async market(payload: dbPollerEvents) {
+    if (!isMarket(payload.payload.data)) {
+      throw new Error("MarketCreated payload must contain market data");
+    }
+
+    const data = payload.payload.data;
+    await db.markets.upsert({
+      where: { id: data.marketId },
+      create: {
+        id: data.marketId,
+        symbol: data.symbol || data.marketId,
+        market: data.marketName,
+        maxLeverage: parseInt(data.maxLeverage) || 10,
+      },
+      update: {
+        symbol: data.symbol || data.marketId,
+        market: data.marketName,
+        maxLeverage: parseInt(data.maxLeverage) || 10,
+      },
+    });
   }
 
   async position(payload: dbPollerEvents) {
@@ -190,7 +261,6 @@ export class AppendData {
     await ensureUserExists(fill.maker);
     await ensureMarketExists(fill.marketId);
 
-    // Ensure taker's order exists in DB before creating fill
     await db.orders.upsert({
       where: { id: fill.takerOrderId },
       create: {
@@ -198,14 +268,14 @@ export class AppendData {
         userId: fill.taker,
         marketId: fill.marketId,
         qty: fill.qty,
+        remainingQty: 0,
         leverage: 1,
+        positionType: "LONG",
         orderType: "MARKET",
         orderStatus: "FILLED",
       },
       update: {},
     });
-
-    const remainingQty = 0;
 
     await db.fills.create({
       data: {
@@ -214,9 +284,10 @@ export class AppendData {
         orderId: fill.takerOrderId,
         makerId: fill.maker,
         takerId: fill.taker,
+        price: fill.price,
         originalQty: fill.qty,
         filledQty: fill.qty,
-        remainingQty,
+        remainingQty: 0,
       },
     });
   }

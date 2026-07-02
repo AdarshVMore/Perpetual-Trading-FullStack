@@ -66,6 +66,7 @@ export type positionUpdates = {
   qty: number;
   pnl: number;
   realisedPnL: number;
+  unrealisedPnL: number;
 };
 export type orderUpdates = {
   type: "orderCreate" | "orderUpdate";
@@ -90,4 +91,5 @@ type UnsubscribeEvent = {
   type: "UNSUBSCRIBE";
   channel: "depth" | "trade" | "position" | "ticker" | "order";
   market: string;
+  userId?: string;
 };
