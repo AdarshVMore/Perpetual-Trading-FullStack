@@ -1,4 +1,5 @@
 import type { CreateMarket, Order, dbPollerEvents, marketType, orderStatus, positionType } from "@shared-types/src";
+import type { orderUpdates } from "@shared-types/src/ws/ws.types";
 import type { MatchingEngine } from "./MatchingEngine";
 import type { RedisManager } from "./RedisManager";
 import type { RiskManager } from "./RiskManager";
@@ -42,7 +43,7 @@ export class EngineServer {
                 leverage: msg.leverage ? parseFloat(msg.leverage) : 1,
                 remainingQty: msg.remainingQty ? parseFloat(msg.remainingQty) : 0,
               };
-              this.createOrder(order);
+              await this.createOrder(order);
             }
             else if(msg.type === "cancle-order") {
               const order: Order = {
@@ -56,7 +57,7 @@ export class EngineServer {
                 price: msg.price ? parseFloat(msg.price) : undefined,
                 qty: msg.qty ? parseFloat(msg.qty) : 0,
                 leverage: msg.leverage ? parseFloat(msg.leverage) : 1,
-                remainingQty: 0,
+                remainingQty: msg.remainingQty ? parseFloat(msg.remainingQty) : 0,
               };
               this.cancleOrder(order)
             } else if(msg.type === "create-market"){
@@ -67,18 +68,21 @@ export class EngineServer {
                 symbol: msg.symbol ?? "",
               };
               this.createMarket(createMarket)
+            } else if (msg.type === "add-balance") {
+              await this.addBalance(msg.userId ?? "", parseFloat(msg.amount ?? "0"));
             }
+            await this.redisManager.saveStreamId(singleMessage.id);
           }
         }
       }
     }
   }
 
-  public createOrder(data: Order) {
+  public async createOrder(data: Order) {
     let user = this.userManager.getUser(data.userId)
 
     if(!user){
-      this.userManager.addUser(data.userId)
+      await this.userManager.addUser(data.userId)
       user = this.userManager.getUser(data.userId)
     }
 
@@ -97,12 +101,37 @@ export class EngineServer {
     this.userManager.lockBalance(user, margin)
     this.userManager.addOrder(data.userId, data)
     this.matchingEngine.matchOrder(data)
+
+    if (data.marketType === "MARKET" && data.remainingQty > 0) {
+      const unlockMargin = this.riskManager.calculateMarginForQty(data, data.remainingQty);
+      this.userManager.unlockBalance(user, unlockMargin);
+    }
+  }
+
+  public createLiquidationOrder(data: Order) {
+    this.matchingEngine.matchOrder(data)
   }
 
   public cancleOrder(data: Order) {
+    const user = this.userManager.getUser(data.userId);
+    if (!user) return;
+
+    const existingOrder = user.orders.find((o) => o.orderId === data.orderId);
+    if (existingOrder) {
+      data.qty = existingOrder.qty ?? data.qty;
+      data.remainingQty = existingOrder.remainingQty ?? data.remainingQty ?? data.qty;
+      data.price = existingOrder.price ?? data.price;
+      data.leverage = existingOrder.leverage ?? data.leverage;
+    }
+
     this.orderBook.cancleOrder(data)
 
-    // Notify DB poller to mark the order as cancelled
+    const unlockMargin = this.riskManager.calculateMarginForQty(data, data.remainingQty, data.price);
+    this.userManager.unlockBalance(user, unlockMargin);
+    this.userManager.removeOrder(data.userId, data.orderId);
+
+    data.status = "CANCLE";
+
     if (this.dbpoller && data.orderId) {
       const cancelEvent: dbPollerEvents = {
         type: "OrderUpdate",
@@ -113,7 +142,44 @@ export class EngineServer {
       };
       void this.dbpoller.sendToDBPoller(cancelEvent);
     }
+
+    const orderUpdateEvent: orderUpdates = {
+      type: "orderUpdate",
+      orderId: data.orderId,
+      userId: data.userId,
+      marketId: data.marketId,
+      positionType: data.positionType,
+      price: data.price,
+      qty: data.qty,
+      remainingQty: 0,
+      leverage: data.leverage,
+      status: "CANCLE",
+    };
+    const orderChannel = this.redisManager.createChannel("order", data.marketId, data.userId);
+    void this.redisManager.publish(orderChannel, orderUpdateEvent);
   }
 
-  public createMarket(_data: CreateMarket) {}
+  public createMarket(data: CreateMarket) {
+    this.orderBook.addMarket(data.marketId);
+
+    if (this.dbpoller) {
+      const marketEvent: dbPollerEvents = {
+        type: "MarketCreated",
+        payload: { method: "POST", data },
+      };
+      void this.dbpoller.sendToDBPoller(marketEvent);
+    }
+  }
+
+  public async addBalance(userId: string, amount: number) {
+    if (!amount || amount <= 0) return;
+
+    let user = this.userManager.getUser(userId);
+    if (!user) {
+      await this.userManager.addUser(userId);
+      return;
+    }
+
+    this.userManager.addBalance(user, amount);
+  }
 }

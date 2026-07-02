@@ -280,3 +280,6 @@ how is this so 1 redis connection, duplicate connection, pubsub connection , etc
 4. OrderUpdate
 5. tickerUpdate
 6. any other update remained
+
+
+pnl -ve jane se pehele he liquidate hojae

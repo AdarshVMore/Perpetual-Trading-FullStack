@@ -10,6 +10,7 @@ import type { OrderBook } from "./OrderBook";
 import type { PositionManager } from "./PositionManager";
 import type { RiskManager } from "./RiskManager";
 import type { RedisManager } from "./RedisManager";
+import type { UserManager } from "./UserManager";
 import type { orderUpdates, tradeUpdates, depthUpdates } from "@shared-types/src/ws/ws.types";
 import { DBPoller } from "./DBPollerManager";
 
@@ -21,22 +22,16 @@ export class MatchingEngine {
     private positionManager: PositionManager,
     private riskManager: RiskManager,
     private redisManager: RedisManager,
+    private userManager: UserManager,
   ) {}
 
   setDBPoller(dbpoller: DBPoller) {
     this.dbpoller = dbpoller;
   }
 
-  matchOrder(order: Order) {
-    const book = this.orderBook.getBook(order.marketId);
-    const createDBPollerOrderCreatedObject: dbPollerEvents = {
-      type: "OrderUpdate",
-      payload: { method: "POST", data: order },
-    };
-    this.dbpoller?.sendToDBPoller(createDBPollerOrderCreatedObject);
-
-    const orderCreateEvent: orderUpdates = {
-      type: "orderCreate",
+  private publishOrderUpdate(order: Order, orderChannel: string, type: "orderCreate" | "orderUpdate") {
+    const orderEvent: orderUpdates = {
+      type,
       orderId: order.orderId,
       userId: order.userId,
       marketId: order.marketId,
@@ -47,8 +42,27 @@ export class MatchingEngine {
       leverage: order.leverage,
       status: order.status,
     };
-    const orderChannel = this.redisManager.createChannel("order", order.marketId);
-    void this.redisManager.publish(orderChannel, orderCreateEvent);
+    void this.redisManager.publish(orderChannel, orderEvent);
+  }
+
+  private sendOrderDBUpdate(order: Order) {
+    const createDBPollerUpdateOrderObject: dbPollerEvents = {
+      type: "OrderUpdate",
+      payload: { method: "PUT", data: order },
+    };
+    this.dbpoller?.sendToDBPoller(createDBPollerUpdateOrderObject);
+  }
+
+  matchOrder(order: Order) {
+    const book = this.orderBook.getBook(order.marketId);
+    const createDBPollerOrderCreatedObject: dbPollerEvents = {
+      type: "OrderUpdate",
+      payload: { method: "POST", data: order },
+    };
+    this.dbpoller?.sendToDBPoller(createDBPollerOrderCreatedObject);
+
+    const orderChannel = this.redisManager.createChannel("order", order.marketId, order.userId);
+    this.publishOrderUpdate(order, orderChannel, "orderCreate");
 
     const response: any = {
       orderId: order.orderId,
@@ -80,6 +94,8 @@ export class MatchingEngine {
         order,
         bestPrice,
       );
+
+      this.orderBook.updateLastTradedPrice(order.marketId, bestPrice);
 
       response.remainingQty -= tradeQty;
 
@@ -113,9 +129,13 @@ export class MatchingEngine {
       const tradeChannel = this.redisManager.createChannel("trade", order.marketId);
       void this.redisManager.publish(tradeChannel, tradeEvent);
 
-      // Limit Order
-      // Market Order
-      // Add to Book
+      // Margin locked at order time stays locked as the position's margin once
+      // a fill opens/increases a position. PositionManager releases it back to
+      // available on reduce/close, so we must NOT release it here.
+      const takerFillMargin = (tradeQty * bestPrice) / order.leverage;
+      const makerFillMargin = (tradeQty * bestPrice) / restingOrder.leverage;
+
+      response.margin.locked = takerFillMargin;
 
       const existingPositionMaker = this.positionManager.getPosition(
         restingOrder.userId,
@@ -125,15 +145,11 @@ export class MatchingEngine {
         order.userId,
         order.marketId,
       );
-      const takerMargin = (tradeQty * bestPrice) / order.leverage;
-      response.margin.locked = takerMargin;
-
-      const makerMargin = (tradeQty * bestPrice) / restingOrder.leverage;
 
       const takerMaintainanceMargin =
-        this.riskManager.calculateMaintainanceMargin(takerMargin);
+        this.riskManager.calculateMaintainanceMargin(takerFillMargin);
       const makerMaintainanceMargin =
-        this.riskManager.calculateMaintainanceMargin(makerMargin);
+        this.riskManager.calculateMaintainanceMargin(makerFillMargin);
       const TakerLiquidationPrice = this.riskManager.calculateLiquidationMargin(
         bestPrice,
         order.leverage,
@@ -149,7 +165,7 @@ export class MatchingEngine {
         positionType: order.positionType,
         qty: tradeQty,
         leverage: order.leverage,
-        margin: takerMargin,
+        margin: takerFillMargin,
         maintainanceMargin: takerMaintainanceMargin,
         liquidationPrice: TakerLiquidationPrice,
         pnL: 0,
@@ -166,7 +182,7 @@ export class MatchingEngine {
           : "LONG") as positionType,
         qty: tradeQty,
         leverage: restingOrder.leverage,
-        margin: makerMargin,
+        margin: makerFillMargin,
         maintainanceMargin: makerMaintainanceMargin,
         liquidationPrice: MakerLiquidationPrice,
         pnL: 0,
@@ -223,48 +239,26 @@ export class MatchingEngine {
     const depthChannel = this.redisManager.createChannel("depth", order.marketId);
     void this.redisManager.publish(depthChannel, depthEvent);
 
+    const filledQty = order.qty - order.remainingQty;
+
     if (order.remainingQty === 0) {
       response.status = "filled";
       order.status = "FILLED";
-      const createDBPollerUpdateOrderObject: dbPollerEvents = {
-        type: "OrderUpdate",
-        payload: { method: "PUT", data: order },
-      };
-      this.dbpoller?.sendToDBPoller(createDBPollerUpdateOrderObject);
-
-      const orderUpdateEvent: orderUpdates = {
-        type: "orderUpdate",
-        orderId: order.orderId,
-        userId: order.userId,
-        marketId: order.marketId,
-        positionType: order.positionType,
-        price: order.price,
-        qty: order.qty,
-        remainingQty: order.remainingQty,
-        leverage: order.leverage,
-        status: "FILLED",
-      };
-      void this.redisManager.publish(orderChannel, orderUpdateEvent);
-
+      this.sendOrderDBUpdate(order);
+      this.publishOrderUpdate(order, orderChannel, "orderUpdate");
       return response;
     }
 
-    if (order.orderType === "LIMIT" && order.remainingQty > 0) {
+    if (filledQty > 0) {
+      order.status = "PARTIAL_FILLED";
+      this.sendOrderDBUpdate(order);
+      this.publishOrderUpdate(order, orderChannel, "orderUpdate");
+    }
+
+    if (order.marketType === "LIMIT" && order.remainingQty > 0) {
       this.orderBook.addToBook(order);
     }
 
     return response;
   }
 }
-
-// makerPositions         exists           =>             => Yes   check side =>  update
-// takerPositions         may/maynot exist => No ? Add    => Yes ? check side =>  update
-// incommingPositions
-
-/*
-  OrderUpdate
-  FillsCreated
-  PositionUpdated for add
-  PositionUpdated for update and cancel
-  OrderUpdate
-*/

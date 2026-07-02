@@ -4,7 +4,6 @@ import type { RedisClientType } from "redis";
 import WebSocket from "ws";
 import db from "@prisma-db";
 
-// ── Config ──────────────────────────────────────────────────────────
 const HTTP_URL = "http://localhost:3000";
 const WS_URL = "ws://localhost:8080";
 const REDIS_URL = "redis://localhost:6379";
@@ -14,14 +13,18 @@ const TEST_EMAIL = "test@example.com";
 const TEST_PASSWORD = "test123";
 const MARKET_ID = "BTCUSDT";
 
-// ── Types ───────────────────────────────────────────────────────────
 interface ApiResponse {
   status: number;
   data: Record<string, unknown> | undefined;
 }
 
-interface OrderPayload {
+interface AuthedUser {
+  token: string;
   userId: string;
+  email: string;
+}
+
+interface OrderPayload {
   marketId: string;
   price: number;
   qty: number;
@@ -31,7 +34,6 @@ interface OrderPayload {
 }
 
 interface CancelPayload {
-  userId: string;
   marketId: string;
   price: number;
   positionType: "LONG" | "SHORT";
@@ -62,6 +64,7 @@ interface PositionEvent {
   qty: number;
   pnl: number;
   realisedPnL: number;
+  unrealisedPnL: number;
 }
 
 interface TickerEvent {
@@ -90,7 +93,6 @@ function isDepthEvent(e: EngineEvent): e is DepthEvent { return e.type === "dept
 function isPositionEvent(e: EngineEvent): e is PositionEvent { return e.type === "position"; }
 function isTickerEvent(e: EngineEvent): e is TickerEvent { return e.type === "ticker"; }
 
-// ── Redis Helpers ───────────────────────────────────────────────────
 let redis: RedisClientType;
 
 async function connectRedis(): Promise<RedisClientType> {
@@ -105,7 +107,6 @@ async function clearRedisStreams(): Promise<void> {
     await redis.del("send-to-engine");
     await redis.del("send-to-dbpoller");
   } catch {
-    // ignore if keys don't exist
   }
 }
 
@@ -154,7 +155,6 @@ function subscribeToChannel(
           const parsed = JSON.parse(raw) as EngineEvent;
           events.push(parsed);
         } catch {
-          // skip unparseable
         }
       });
 
@@ -168,56 +168,78 @@ function subscribeToChannel(
   });
 }
 
-// ── HTTP Helpers ────────────────────────────────────────────────────
 async function api(
   method: "GET" | "POST",
   path: string,
   body?: unknown,
+  token?: string,
 ): Promise<ApiResponse> {
   const headers: Record<string, string> = {
     "content-type": "application/json",
   };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
   const response = await fetch(`${HTTP_URL}${path}`, {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const text = await response.text();
+  let data: Record<string, unknown> | undefined;
+  if (text.length > 0) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = undefined;
+    }
+  }
   return {
     status: response.status,
-    data: text.length > 0 ? JSON.parse(text) : undefined,
+    data,
   };
 }
 
-async function signup(email: string, password: string): Promise<ApiResponse> {
-  return api("POST", "/api/v1/auth/signup", { email, password, role: "user" });
+async function signup(email: string, password: string, role: "user" | "admin" = "user"): Promise<ApiResponse> {
+  return api("POST", "/api/v1/auth/signup", { email, password, role });
 }
 
 async function signin(email: string, password: string): Promise<ApiResponse> {
   return api("POST", "/api/v1/auth/signin", { email, password });
 }
 
-async function createOrder(order: OrderPayload): Promise<ApiResponse> {
-  return api("POST", "/api/v1/order/create-order", order);
+async function createAuthedUser(label: string): Promise<AuthedUser> {
+  const email = `${label}-${Date.now()}@test.com`;
+  const password = "test123";
+  const res = await signup(email, password);
+  return {
+    token: res.data!.token as string,
+    userId: res.data!.userId as string,
+    email,
+  };
+}
+
+async function createAdminUser(label: string): Promise<AuthedUser> {
+  const email = `${label}-admin-${Date.now()}@test.com`;
+  const password = "test123";
+  const res = await signup(email, password, "admin");
+  return {
+    token: res.data!.token as string,
+    userId: res.data!.userId as string,
+    email,
+  };
+}
+
+async function createOrder(order: OrderPayload, token: string): Promise<ApiResponse> {
+  return api("POST", "/api/v1/order/create-order", order, token);
 }
 
 async function cancelOrder(
   orderId: string,
   body: CancelPayload,
+  token: string,
 ): Promise<ApiResponse> {
-  const response = await fetch(
-    `${HTTP_URL}/api/v1/order/cancle-order/${orderId}`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    },
-  );
-  const text = await response.text();
-  return {
-    status: response.status,
-    data: text.length > 0 ? JSON.parse(text) : undefined,
-  };
+  return api("POST", `/api/v1/order/cancle-order/${orderId}`, body, token);
 }
 
 async function createMarket(
@@ -226,25 +248,11 @@ async function createMarket(
   maxLeverage: number,
   adminToken?: string,
 ): Promise<ApiResponse> {
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-  };
-  if (adminToken) headers["authorization"] = `Bearer ${adminToken}`;
-  const response = await fetch(`${HTTP_URL}/api/v1/order/create-market`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ marketId, marketName, maxLeverage }),
-  });
-  const text = await response.text();
-  return {
-    status: response.status,
-    data: text.length > 0 ? JSON.parse(text) : undefined,
-  };
+  return api("POST", "/api/v1/order/create-market", { marketId, marketName, maxLeverage }, adminToken);
 }
 
 function buildOrder(overrides: Partial<OrderPayload> = {}): OrderPayload {
   return {
-    userId: "user1",
     marketId: MARKET_ID,
     price: 50000,
     qty: 1,
@@ -255,19 +263,17 @@ function buildOrder(overrides: Partial<OrderPayload> = {}): OrderPayload {
   };
 }
 
-// ── Prisma Cleanup ─────────────────────────────────────────────────
 async function cleanupDatabase(): Promise<void> {
   try {
     await db.fills.deleteMany({});
     await db.orders.deleteMany({});
     await db.positions.deleteMany({});
+    await db.userBalance.deleteMany({});
     await db.user.deleteMany({});
   } catch {
-    // tables may not exist yet
   }
 }
 
-// ── Setup / Teardown ────────────────────────────────────────────────
 beforeAll(async () => {
   redis = await connectRedis();
   await cleanupDatabase();
@@ -282,8 +288,7 @@ afterAll(async () => {
   console.log("test cleanup complete");
 });
 
-// ── Tests ───────────────────────────────────────────────────────────
-describe("✅ Signup / Login", () => {
+describe("Signup / Login", () => {
   it("signs up a new user and returns a JWT token", async () => {
     const res = await signup(TEST_EMAIL, TEST_PASSWORD);
     expect(res.status).toBe(200);
@@ -319,12 +324,48 @@ describe("✅ Signup / Login", () => {
   });
 });
 
-describe("🛒 Place Order", () => {
+describe("Auth required", () => {
+  it("rejects create-order without token", async () => {
+    const res = await api("POST", "/api/v1/order/create-order", buildOrder());
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects get-orders without token", async () => {
+    const res = await api("GET", `/api/v1/order/get-orders/${MARKET_ID}`);
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects get-fills without token", async () => {
+    const res = await api("GET", `/api/v1/order/get-fills/${MARKET_ID}`);
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("Add Balance", () => {
+  it("adds balance and reflects in GET /balance", async () => {
+    const user = await createAuthedUser("balance-user");
+
+    const before = await api("GET", "/api/v1/auth/balance", undefined, user.token);
+    expect(before.status).toBe(200);
+    const beforeAvailable = before.data!.availableBalance as number;
+
+    const addRes = await api("POST", "/api/v1/auth/add-balance", { amount: 5000 }, user.token);
+    expect(addRes.status).toBe(200);
+    expect(addRes.data!.availableBalance).toBe(beforeAvailable + 5000);
+
+    const after = await api("GET", "/api/v1/auth/balance", undefined, user.token);
+    expect(after.status).toBe(200);
+    expect(after.data!.availableBalance).toBe(beforeAvailable + 5000);
+  });
+});
+
+describe("Place Order", () => {
   it("accepts a limit order and writes to the engine stream", async () => {
     await clearRedisStreams();
 
-    const order = buildOrder({ userId: "alice", orderType: "LIMIT" });
-    const res = await createOrder(order);
+    const alice = await createAuthedUser("alice");
+    const order = buildOrder({ orderType: "LIMIT" });
+    const res = await createOrder(order, alice.token);
 
     expect(res.status).toBe(200);
     expect(res.data!.message).toMatch(/accepted/i);
@@ -334,7 +375,7 @@ describe("🛒 Place Order", () => {
     expect(engineMessages.length).toBeGreaterThan(0);
 
     const orderMsg = engineMessages.find(
-      (m) => m.userId === "alice" && m["type"] === "create-order",
+      (m) => m.userId === alice.userId && m["type"] === "create-order",
     );
     expect(orderMsg).toBeDefined();
     expect(orderMsg!.qty).toBe("1");
@@ -347,23 +388,23 @@ describe("🛒 Place Order", () => {
   it("accepts a market order and writes to the engine stream", async () => {
     await clearRedisStreams();
 
-    const order = buildOrder({ userId: "bob", orderType: "MARKET", price: 0 });
-    const res = await createOrder(order);
+    const bob = await createAuthedUser("bob");
+    const order = buildOrder({ orderType: "MARKET", price: 0 });
+    const res = await createOrder(order, bob.token);
 
     expect(res.status).toBe(200);
 
     const engineMessages = await readEngineStream();
     const orderMsg = engineMessages.find(
-      (m) => m.userId === "bob" && m["type"] === "create-order",
+      (m) => m.userId === bob.userId && m["type"] === "create-order",
     );
     expect(orderMsg).toBeDefined();
     expect(orderMsg!.orderType).toBe("MARKET");
   });
 
   it("rejects order with missing required fields", async () => {
-    const res = await api("POST", "/api/v1/order/create-order", {
-      userId: "bad",
-    });
+    const user = await createAuthedUser("bad-order");
+    const res = await api("POST", "/api/v1/order/create-order", { marketId: MARKET_ID }, user.token);
     expect(res.status).toBe(400);
     expect(res.data!.error).toBeDefined();
   });
@@ -371,18 +412,15 @@ describe("🛒 Place Order", () => {
   it("places a short order", async () => {
     await clearRedisStreams();
 
-    const order = buildOrder({
-      userId: "carol",
-      orderType: "LIMIT",
-      positionType: "SHORT",
-    });
-    const res = await createOrder(order);
+    const carol = await createAuthedUser("carol");
+    const order = buildOrder({ orderType: "LIMIT", positionType: "SHORT" });
+    const res = await createOrder(order, carol.token);
 
     expect(res.status).toBe(200);
 
     const engineMessages = await readEngineStream();
     const orderMsg = engineMessages.find(
-      (m) => m.userId === "carol" && m["type"] === "create-order",
+      (m) => m.userId === carol.userId && m["type"] === "create-order",
     );
     expect(orderMsg).toBeDefined();
     expect(orderMsg!.positionType).toBe("SHORT");
@@ -391,34 +429,36 @@ describe("🛒 Place Order", () => {
   it("places an order with maximum leverage", async () => {
     await clearRedisStreams();
 
-    const order = buildOrder({ userId: "dave", orderType: "LIMIT", leverage: 100 });
-    const res = await createOrder(order);
+    const dave = await createAuthedUser("dave");
+    const order = buildOrder({ orderType: "LIMIT", leverage: 100 });
+    const res = await createOrder(order, dave.token);
 
     expect(res.status).toBe(200);
 
     const engineMessages = await readEngineStream();
     const orderMsg = engineMessages.find(
-      (m) => m.userId === "dave" && m["type"] === "create-order",
+      (m) => m.userId === dave.userId && m["type"] === "create-order",
     );
     expect(orderMsg).toBeDefined();
     expect(orderMsg!.leverage).toBe("100");
   });
 });
 
-describe("📡 Redis Engine Stream", () => {
+describe("Redis Engine Stream", () => {
   it("forwards order data to the send-to-engine stream with correct schema", async () => {
     await clearRedisStreams();
 
-    const order = buildOrder({ userId: "eve", orderType: "LIMIT" });
-    await createOrder(order);
+    const eve = await createAuthedUser("eve");
+    const order = buildOrder({ orderType: "LIMIT" });
+    await createOrder(order, eve.token);
 
     const messages = await readEngineStream();
     const msg = messages.find(
-      (m) => m.userId === "eve" && m["type"] === "create-order",
+      (m) => m.userId === eve.userId && m["type"] === "create-order",
     );
 
     expect(msg).toBeDefined();
-    expect(msg!.userId).toBe("eve");
+    expect(msg!.userId).toBe(eve.userId);
     expect(msg!.marketId).toBe(MARKET_ID);
     expect(msg!.qty).toBeDefined();
     expect(msg!.leverage).toBeDefined();
@@ -429,34 +469,30 @@ describe("📡 Redis Engine Stream", () => {
   it("includes orderId and reqId for tracking in the stream", async () => {
     await clearRedisStreams();
 
-    const order = buildOrder({ userId: "frank", orderType: "LIMIT" });
-    const res = await createOrder(order);
+    const frank = await createAuthedUser("frank");
+    const order = buildOrder({ orderType: "LIMIT" });
+    const res = await createOrder(order, frank.token);
 
     const messages = await readEngineStream();
     const msg = messages.find(
-      (m) => m.userId === "frank" && m["type"] === "create-order",
+      (m) => m.userId === frank.userId && m["type"] === "create-order",
     );
     expect(msg!.reqId).toBeDefined();
     expect(msg!.orderId).toBeDefined();
     expect(msg!.orderId).not.toBe("");
-    // Response also returns orderId
     expect(res.data!.orderId).toEqual(expect.any(String));
   });
 });
 
-describe("📊 Depth Stream (via Redis PubSub)", () => {
+describe("Depth Stream (via Redis PubSub)", () => {
   it("publishes depth updates after order matching", async () => {
     const channel = `depth:${MARKET_ID}`;
     const depthPromise = subscribeToChannel(channel, 3000);
 
+    const maker = await createAuthedUser("depth-maker");
     await createOrder(
-      buildOrder({
-        userId: "depth-maker",
-        orderType: "LIMIT",
-        price: 40000,
-        qty: 2,
-        positionType: "SHORT",
-      }),
+      buildOrder({ orderType: "LIMIT", price: 40000, qty: 2, positionType: "SHORT" }),
+      maker.token,
     );
 
     const events = await depthPromise;
@@ -470,31 +506,24 @@ describe("📊 Depth Stream (via Redis PubSub)", () => {
   });
 });
 
-describe("💹 Trade Stream (via Redis PubSub)", () => {
+describe("Trade Stream (via Redis PubSub)", () => {
   it("publishes trade events when orders match", async () => {
     const channel = `trade:${MARKET_ID}`;
     const tradePromise = subscribeToChannel(channel, 5000);
 
+    const maker = await createAuthedUser("trade-maker");
+    const taker = await createAuthedUser("trade-taker");
+
     await createOrder(
-      buildOrder({
-        userId: "trade-maker",
-        orderType: "LIMIT",
-        price: 45000,
-        qty: 1,
-        positionType: "SHORT",
-      }),
+      buildOrder({ orderType: "LIMIT", price: 45000, qty: 1, positionType: "SHORT" }),
+      maker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     await createOrder(
-      buildOrder({
-        userId: "trade-taker",
-        orderType: "MARKET",
-        price: 0,
-        qty: 1,
-        positionType: "LONG",
-      }),
+      buildOrder({ orderType: "MARKET", price: 0, qty: 1, positionType: "LONG" }),
+      taker.token,
     );
 
     const events = await tradePromise;
@@ -504,37 +533,30 @@ describe("💹 Trade Stream (via Redis PubSub)", () => {
       expect(trades[0]?.marketId).toBe(MARKET_ID);
       expect(trades[0]?.price).toBeGreaterThan(0);
       expect(trades[0]?.qty).toBeGreaterThan(0);
-      expect(trades[0]?.maker).toBe("trade-maker");
-      expect(trades[0]?.taker).toBe("trade-taker");
+      expect(trades[0]?.maker).toBe(maker.userId);
+      expect(trades[0]?.taker).toBe(taker.userId);
     }
   });
 });
 
-describe("📈 Position Stream (via Redis PubSub)", () => {
+describe("Position Stream (via Redis PubSub)", () => {
   it("publishes position updates when a position is opened", async () => {
-    const channel = `position:pos-taker2:${MARKET_ID}`;
+    const maker = await createAuthedUser("pos-maker2");
+    const taker = await createAuthedUser("pos-taker2");
+
+    const channel = `position:${taker.userId}:${MARKET_ID}`;
     const posPromise = subscribeToChannel(channel, 5000);
 
     await createOrder(
-      buildOrder({
-        userId: "pos-maker2",
-        orderType: "LIMIT",
-        price: 42000,
-        qty: 1,
-        positionType: "SHORT",
-      }),
+      buildOrder({ orderType: "LIMIT", price: 42000, qty: 1, positionType: "SHORT" }),
+      maker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     await createOrder(
-      buildOrder({
-        userId: "pos-taker2",
-        orderType: "MARKET",
-        price: 0,
-        qty: 1,
-        positionType: "LONG",
-      }),
+      buildOrder({ orderType: "MARKET", price: 0, qty: 1, positionType: "LONG" }),
+      taker.token,
     );
 
     const events = await posPromise;
@@ -547,7 +569,7 @@ describe("📈 Position Stream (via Redis PubSub)", () => {
   });
 });
 
-describe("🔔 Ticker Stream (via Redis PubSub)", () => {
+describe("Ticker Stream (via Redis PubSub)", () => {
   it("publishes ticker updates with index price", async () => {
     const channel = `ticker:${MARKET_ID}`;
     const tickerPromise = subscribeToChannel(channel, 4000);
@@ -562,7 +584,7 @@ describe("🔔 Ticker Stream (via Redis PubSub)", () => {
   });
 });
 
-describe("🗄️ DB Poller Persistence", () => {
+describe("DB Poller Persistence", () => {
   const waitFor = async (
     assertion: () => Promise<void>,
     timeout = 5000,
@@ -588,15 +610,11 @@ describe("🗄️ DB Poller Persistence", () => {
   });
 
   it("writes OrderUpdate events to send-to-dbpoller stream", async () => {
-    const userId = "db-persistence-user";
+    const user = await createAuthedUser("db-persistence-user");
 
     await createOrder(
-      buildOrder({
-        userId,
-        orderType: "LIMIT",
-        price: 48000,
-        qty: 1,
-      }),
+      buildOrder({ orderType: "LIMIT", price: 48000, qty: 1 }),
+      user.token,
     );
 
     await waitFor(async () => {
@@ -608,7 +626,7 @@ describe("🗄️ DB Poller Persistence", () => {
           const parsed = JSON.parse(msg.data);
           return (
             parsed.type === "OrderUpdate" &&
-            parsed.payload?.data.userId === userId
+            parsed.payload?.data.userId === user.userId
           );
         } catch {
           return false;
@@ -620,59 +638,48 @@ describe("🗄️ DB Poller Persistence", () => {
   });
 
   it("persists OrderUpdate events to database", async () => {
-    const userId = `db-order-user-${Date.now()}`;
+    const user = await createAuthedUser("db-order-user");
 
     const res = await createOrder(
-      buildOrder({
-        userId,
-        orderType: "LIMIT",
-        price: 47000,
-        qty: 1,
-      }),
+      buildOrder({ orderType: "LIMIT", price: 47000, qty: 1 }),
+      user.token,
     );
 
     const orderId = res.data!.orderId as string;
     expect(orderId).toBeDefined();
 
     await waitFor(async () => {
-      const orders = await db.orders.findMany({ where: { userId } });
+      const orders = await db.orders.findMany({ where: { userId: user.userId } });
 
       expect(orders.length).toBeGreaterThan(0);
 
       const order = orders[0];
-      expect(order?.userId).toBe(userId);
+      expect(order?.userId).toBe(user.userId);
       expect(order?.qty).toBe(1);
       expect(order?.marketId).toBe(MARKET_ID);
     });
   });
 
   it("persists FillsCreated events after a trade executes", async () => {
-    const sellerId = `seller-${Date.now()}`;
-    const buyerId = `buyer-${Date.now()}`;
+    const seller = await createAuthedUser("seller");
+    const buyer = await createAuthedUser("buyer");
 
     await createOrder(
-      buildOrder({
-        userId: sellerId,
-        positionType: "SHORT",
-        orderType: "LIMIT",
-        price: 50000,
-        qty: 1,
-      }),
+      buildOrder({ positionType: "SHORT", orderType: "LIMIT", price: 50000, qty: 1 }),
+      seller.token,
     );
 
+    await new Promise((r) => setTimeout(r, 500));
+
     await createOrder(
-      buildOrder({
-        userId: buyerId,
-        positionType: "LONG",
-        orderType: "MARKET",
-        qty: 1,
-      }),
+      buildOrder({ positionType: "LONG", orderType: "MARKET", qty: 1 }),
+      buyer.token,
     );
 
     await waitFor(async () => {
       const fills = await db.fills.findMany({
         where: {
-          OR: [{ userId: buyerId }, { userId: sellerId }],
+          OR: [{ userId: buyer.userId }, { userId: seller.userId }],
         },
       });
 
@@ -681,69 +688,54 @@ describe("🗄️ DB Poller Persistence", () => {
   });
 
   it("persists PositionUpdated events after a trade executes", async () => {
-    const sellerId = `position-seller-${Date.now()}`;
-    const buyerId = `position-buyer-${Date.now()}`;
+    const seller = await createAuthedUser("position-seller");
+    const buyer = await createAuthedUser("position-buyer");
 
     await createOrder(
-      buildOrder({
-        userId: sellerId,
-        positionType: "SHORT",
-        orderType: "LIMIT",
-        price: 51000,
-        qty: 1,
-      }),
+      buildOrder({ positionType: "SHORT", orderType: "LIMIT", price: 51000, qty: 1 }),
+      seller.token,
     );
 
+    await new Promise((r) => setTimeout(r, 500));
+
     await createOrder(
-      buildOrder({
-        userId: buyerId,
-        positionType: "LONG",
-        orderType: "MARKET",
-        qty: 1,
-      }),
+      buildOrder({ positionType: "LONG", orderType: "MARKET", qty: 1 }),
+      buyer.token,
     );
 
     await waitFor(async () => {
       const positions = await db.positions.findMany({
-        where: { userId: buyerId, marketId: MARKET_ID },
+        where: { userId: buyer.userId, marketId: MARKET_ID },
       });
 
       expect(positions.length).toBeGreaterThan(0);
 
       const position = positions[0];
-      expect(position?.userId).toBe(buyerId);
+      expect(position?.userId).toBe(buyer.userId);
       expect(position?.marketId).toBe(MARKET_ID);
     });
   });
 });
 
-describe("🔄 Full Fill", () => {
+describe("Full Fill", () => {
   it("matches a taker against a maker at the maker price (full fill)", async () => {
     await clearRedisStreams();
 
+    const maker = await createAuthedUser("full-fill-maker");
+    const taker = await createAuthedUser("full-fill-taker");
     const makerPrice = 51000;
     const qty = 2;
 
     await createOrder(
-      buildOrder({
-        userId: "full-fill-maker",
-        orderType: "LIMIT",
-        price: makerPrice,
-        qty,
-        positionType: "SHORT",
-      }),
+      buildOrder({ orderType: "LIMIT", price: makerPrice, qty, positionType: "SHORT" }),
+      maker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     const res = await createOrder(
-      buildOrder({
-        userId: "full-fill-taker",
-        orderType: "MARKET",
-        price: 0,
-        qty,
-        positionType: "LONG",
-      }),
+      buildOrder({ orderType: "MARKET", price: 0, qty, positionType: "LONG" }),
+      taker.token,
     );
 
     expect(res.status).toBe(200);
@@ -754,7 +746,7 @@ describe("🔄 Full Fill", () => {
     const trades = events.filter(isTradeEvent);
 
     const matchingTrade = trades.find(
-      (t) => t.maker === "full-fill-maker" && t.taker === "full-fill-taker",
+      (t) => t.maker === maker.userId && t.taker === taker.userId,
     );
 
     if (matchingTrade) {
@@ -764,30 +756,23 @@ describe("🔄 Full Fill", () => {
   });
 });
 
-describe("🔄 Partial Fill", () => {
+describe("Partial Fill", () => {
   it("partially fills a taker when maker liquidity is insufficient", async () => {
     await clearRedisStreams();
 
+    const maker = await createAuthedUser("partial-maker");
+    const taker = await createAuthedUser("partial-taker");
+
     await createOrder(
-      buildOrder({
-        userId: "partial-maker",
-        orderType: "LIMIT",
-        price: 49000,
-        qty: 1,
-        positionType: "SHORT",
-      }),
+      buildOrder({ orderType: "LIMIT", price: 49000, qty: 1, positionType: "SHORT" }),
+      maker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     const res = await createOrder(
-      buildOrder({
-        userId: "partial-taker",
-        orderType: "MARKET",
-        price: 0,
-        qty: 3,
-        positionType: "LONG",
-      }),
+      buildOrder({ orderType: "MARKET", price: 0, qty: 3, positionType: "LONG" }),
+      taker.token,
     );
 
     expect(res.status).toBe(200);
@@ -798,7 +783,7 @@ describe("🔄 Partial Fill", () => {
     const trades = events.filter(isTradeEvent);
 
     if (trades.length > 0) {
-      const relevant = trades.filter((t) => t.taker === "partial-taker");
+      const relevant = trades.filter((t) => t.taker === taker.userId);
       expect(relevant.length).toBeGreaterThan(0);
       const totalQty = relevant.reduce((s, t) => s + t.qty, 0);
       expect(totalQty).toBeLessThanOrEqual(3);
@@ -806,24 +791,33 @@ describe("🔄 Partial Fill", () => {
   });
 });
 
-describe("🔄 Multiple Partial Fills", () => {
+describe("Multiple Partial Fills", () => {
   it("fills across multiple maker levels when no single maker has enough liquidity", async () => {
     await clearRedisStreams();
 
+    const maker1 = await createAuthedUser("multi-maker-1");
+    const maker2 = await createAuthedUser("multi-maker-2");
+    const maker3 = await createAuthedUser("multi-maker-3");
+    const taker = await createAuthedUser("multi-taker");
+
     await createOrder(
-      buildOrder({ userId: "multi-maker-1", orderType: "LIMIT", price: 48000, qty: 1, positionType: "SHORT" }),
+      buildOrder({ orderType: "LIMIT", price: 48000, qty: 1, positionType: "SHORT" }),
+      maker1.token,
     );
     await createOrder(
-      buildOrder({ userId: "multi-maker-2", orderType: "LIMIT", price: 48100, qty: 2, positionType: "SHORT" }),
+      buildOrder({ orderType: "LIMIT", price: 48100, qty: 2, positionType: "SHORT" }),
+      maker2.token,
     );
     await createOrder(
-      buildOrder({ userId: "multi-maker-3", orderType: "LIMIT", price: 48200, qty: 3, positionType: "SHORT" }),
+      buildOrder({ orderType: "LIMIT", price: 48200, qty: 3, positionType: "SHORT" }),
+      maker3.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     const res = await createOrder(
-      buildOrder({ userId: "multi-taker", orderType: "MARKET", price: 0, qty: 5, positionType: "LONG" }),
+      buildOrder({ orderType: "MARKET", price: 0, qty: 5, positionType: "LONG" }),
+      taker.token,
     );
 
     expect(res.status).toBe(200);
@@ -831,7 +825,7 @@ describe("🔄 Multiple Partial Fills", () => {
     const channel = `trade:${MARKET_ID}`;
     const tradePromise = subscribeToChannel(channel, 3000);
     const events = await tradePromise;
-    const trades = events.filter(isTradeEvent).filter((t) => t.taker === "multi-taker");
+    const trades = events.filter(isTradeEvent).filter((t) => t.taker === taker.userId);
 
     if (trades.length > 0) {
       const totalFilled = trades.reduce((s, t) => s + t.qty, 0);
@@ -841,23 +835,28 @@ describe("🔄 Multiple Partial Fills", () => {
   });
 });
 
-describe("🔄 Open / Increase / Reduce / Close Position", () => {
+describe("Open / Increase / Reduce / Close Position", () => {
   it("opens a new position when user places first matched order", async () => {
     await clearRedisStreams();
 
+    const maker = await createAuthedUser("pos-open-maker");
+    const taker = await createAuthedUser("pos-open-taker");
+
     await createOrder(
-      buildOrder({ userId: "pos-open-maker", orderType: "LIMIT", price: 46000, qty: 1, positionType: "SHORT" }),
+      buildOrder({ orderType: "LIMIT", price: 46000, qty: 1, positionType: "SHORT" }),
+      maker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     await createOrder(
-      buildOrder({ userId: "pos-open-taker", orderType: "MARKET", price: 0, qty: 1, positionType: "LONG" }),
+      buildOrder({ orderType: "MARKET", price: 0, qty: 1, positionType: "LONG" }),
+      taker.token,
     );
 
     await new Promise((r) => setTimeout(r, 1500));
 
-    const makerPos = await db.positions.findMany({ where: { userId: "pos-open-maker" } });
+    const makerPos = await db.positions.findMany({ where: { userId: maker.userId } });
 
     if (makerPos.length > 0) {
       expect(makerPos[0]?.qty).toBe(1);
@@ -868,20 +867,25 @@ describe("🔄 Open / Increase / Reduce / Close Position", () => {
   it("increases position size when same-side order is matched", async () => {
     await clearRedisStreams();
 
+    const maker = await createAuthedUser("pos-inc-maker");
+    const taker = await createAuthedUser("pos-inc-taker");
+
     await createOrder(
-      buildOrder({ userId: "pos-open-maker", orderType: "LIMIT", price: 44000, qty: 2, positionType: "SHORT" }),
+      buildOrder({ orderType: "LIMIT", price: 44000, qty: 2, positionType: "SHORT" }),
+      maker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     await createOrder(
-      buildOrder({ userId: "pos-inc-taker", orderType: "MARKET", price: 0, qty: 2, positionType: "LONG" }),
+      buildOrder({ orderType: "MARKET", price: 0, qty: 2, positionType: "LONG" }),
+      taker.token,
     );
 
     await new Promise((r) => setTimeout(r, 1000));
 
     const makerPos = await db.positions.findMany({
-      where: { userId: "pos-open-maker", marketId: MARKET_ID },
+      where: { userId: maker.userId, marketId: MARKET_ID },
     });
 
     if (makerPos.length > 0) {
@@ -892,35 +896,39 @@ describe("🔄 Open / Increase / Reduce / Close Position", () => {
   it("reduces position when opposite-side smaller order is matched", async () => {
     await clearRedisStreams();
 
-    const reduceMaker = "reduce-maker";
-    const reduceTaker = "reduce-taker";
+    const reduceMaker = await createAuthedUser("reduce-maker");
+    const reduceTaker = await createAuthedUser("reduce-taker");
 
     await createOrder(
-      buildOrder({ userId: reduceMaker, orderType: "LIMIT", price: 43000, qty: 3, positionType: "SHORT" }),
+      buildOrder({ orderType: "LIMIT", price: 43000, qty: 3, positionType: "SHORT" }),
+      reduceMaker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     await createOrder(
-      buildOrder({ userId: reduceTaker, orderType: "MARKET", price: 0, qty: 3, positionType: "LONG" }),
+      buildOrder({ orderType: "MARKET", price: 0, qty: 3, positionType: "LONG" }),
+      reduceTaker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     await createOrder(
-      buildOrder({ userId: reduceMaker, orderType: "LIMIT", price: 42000, qty: 1, positionType: "LONG" }),
+      buildOrder({ orderType: "LIMIT", price: 42000, qty: 1, positionType: "LONG" }),
+      reduceMaker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     await createOrder(
-      buildOrder({ userId: reduceTaker, orderType: "MARKET", price: 0, qty: 1, positionType: "SHORT" }),
+      buildOrder({ orderType: "MARKET", price: 0, qty: 1, positionType: "SHORT" }),
+      reduceTaker.token,
     );
 
     await new Promise((r) => setTimeout(r, 1500));
 
     const makerPositions = await db.positions.findMany({
-      where: { userId: reduceMaker, marketId: MARKET_ID },
+      where: { userId: reduceMaker.userId, marketId: MARKET_ID },
     });
 
     if (makerPositions.length > 0) {
@@ -932,35 +940,39 @@ describe("🔄 Open / Increase / Reduce / Close Position", () => {
   it("closes position when opposite-side equal order is matched", async () => {
     await clearRedisStreams();
 
-    const closeMaker = "close-maker";
-    const closeTaker = "close-taker";
+    const closeMaker = await createAuthedUser("close-maker");
+    const closeTaker = await createAuthedUser("close-taker");
 
     await createOrder(
-      buildOrder({ userId: closeMaker, orderType: "LIMIT", price: 41000, qty: 2, positionType: "SHORT" }),
+      buildOrder({ orderType: "LIMIT", price: 41000, qty: 2, positionType: "SHORT" }),
+      closeMaker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     await createOrder(
-      buildOrder({ userId: closeTaker, orderType: "MARKET", price: 0, qty: 2, positionType: "LONG" }),
+      buildOrder({ orderType: "MARKET", price: 0, qty: 2, positionType: "LONG" }),
+      closeTaker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     await createOrder(
-      buildOrder({ userId: closeMaker, orderType: "LIMIT", price: 40000, qty: 2, positionType: "LONG" }),
+      buildOrder({ orderType: "LIMIT", price: 40000, qty: 2, positionType: "LONG" }),
+      closeMaker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     await createOrder(
-      buildOrder({ userId: closeTaker, orderType: "MARKET", price: 0, qty: 2, positionType: "SHORT" }),
+      buildOrder({ orderType: "MARKET", price: 0, qty: 2, positionType: "SHORT" }),
+      closeTaker.token,
     );
 
     await new Promise((r) => setTimeout(r, 1500));
 
     const makerPositions = await db.positions.findMany({
-      where: { userId: closeMaker, marketId: MARKET_ID },
+      where: { userId: closeMaker.userId, marketId: MARKET_ID },
     });
 
     expect(makerPositions.length).toBe(0);
@@ -969,35 +981,39 @@ describe("🔄 Open / Increase / Reduce / Close Position", () => {
   it("reverses position when opposite-side larger order is matched", async () => {
     await clearRedisStreams();
 
-    const reverseMaker = "reverse-maker";
-    const reverseTaker = "reverse-taker";
+    const reverseMaker = await createAuthedUser("reverse-maker");
+    const reverseTaker = await createAuthedUser("reverse-taker");
 
     await createOrder(
-      buildOrder({ userId: reverseMaker, orderType: "LIMIT", price: 40000, qty: 2, positionType: "SHORT" }),
+      buildOrder({ orderType: "LIMIT", price: 40000, qty: 2, positionType: "SHORT" }),
+      reverseMaker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     await createOrder(
-      buildOrder({ userId: reverseTaker, orderType: "MARKET", price: 0, qty: 2, positionType: "LONG" }),
+      buildOrder({ orderType: "MARKET", price: 0, qty: 2, positionType: "LONG" }),
+      reverseTaker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     await createOrder(
-      buildOrder({ userId: reverseMaker, orderType: "LIMIT", price: 42000, qty: 5, positionType: "LONG" }),
+      buildOrder({ orderType: "LIMIT", price: 42000, qty: 5, positionType: "LONG" }),
+      reverseMaker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     await createOrder(
-      buildOrder({ userId: reverseTaker, orderType: "MARKET", price: 0, qty: 5, positionType: "SHORT" }),
+      buildOrder({ orderType: "MARKET", price: 0, qty: 5, positionType: "SHORT" }),
+      reverseTaker.token,
     );
 
     await new Promise((r) => setTimeout(r, 1500));
 
     const makerPos = await db.positions.findMany({
-      where: { userId: reverseMaker, marketId: MARKET_ID },
+      where: { userId: reverseMaker.userId, marketId: MARKET_ID },
     });
 
     if (makerPos.length > 0) {
@@ -1007,34 +1023,37 @@ describe("🔄 Open / Increase / Reduce / Close Position", () => {
   });
 });
 
-describe("💰 Realized PnL", () => {
+describe("Realized PnL", () => {
   it("calculates realized PnL when a position is reduced or closed", async () => {
     await clearRedisStreams();
 
-    const pnlMaker = "pnl-maker";
-    const pnlTaker = "pnl-taker";
+    const pnlMaker = await createAuthedUser("pnl-maker");
+    const pnlTaker = await createAuthedUser("pnl-taker");
 
     await createOrder(
-      buildOrder({ userId: pnlMaker, orderType: "LIMIT", price: 38000, qty: 2, positionType: "SHORT" }),
+      buildOrder({ orderType: "LIMIT", price: 38000, qty: 2, positionType: "SHORT" }),
+      pnlMaker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     await createOrder(
-      buildOrder({ userId: pnlTaker, orderType: "MARKET", price: 0, qty: 2, positionType: "LONG" }),
+      buildOrder({ orderType: "MARKET", price: 0, qty: 2, positionType: "LONG" }),
+      pnlTaker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     await createOrder(
-      buildOrder({ userId: pnlMaker, orderType: "LIMIT", price: 37000, qty: 1, positionType: "LONG" }),
+      buildOrder({ orderType: "LIMIT", price: 37000, qty: 1, positionType: "LONG" }),
+      pnlMaker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
-    // pnlTaker places MARKET SHORT 1 → reducePosition on maker: SHORT 2 → SHORT 1, PnL = 1*(38000-37000) = 1000
     await createOrder(
-      buildOrder({ userId: pnlTaker, orderType: "MARKET", price: 0, qty: 1, positionType: "SHORT" }),
+      buildOrder({ orderType: "MARKET", price: 0, qty: 1, positionType: "SHORT" }),
+      pnlTaker.token,
     );
 
     await new Promise((r) => setTimeout(r, 1500));
@@ -1044,7 +1063,7 @@ describe("💰 Realized PnL", () => {
     expect(fills.length).toBeGreaterThan(0);
 
     const makerPositions = await db.positions.findMany({
-      where: { userId: pnlMaker, marketId: MARKET_ID },
+      where: { userId: pnlMaker.userId, marketId: MARKET_ID },
     });
     if (makerPositions.length > 0) {
       expect(makerPositions[0]?.qty).toBe(1);
@@ -1054,7 +1073,7 @@ describe("💰 Realized PnL", () => {
   });
 });
 
-describe("📉 Unrealized PnL", () => {
+describe("Unrealized PnL", () => {
   it("tracks unrealized PnL as mark price moves", async () => {
     const channel = `ticker:${MARKET_ID}`;
     const tickerPromise = subscribeToChannel(channel, 5000);
@@ -1067,28 +1086,30 @@ describe("📉 Unrealized PnL", () => {
   });
 });
 
-describe("💀 Liquidation", () => {
+describe("Liquidation", () => {
   it("liquidates a high-leverage LONG position when mark price drops below liquidation price", async () => {
     await clearRedisStreams();
 
-    const liqUser = "liq-test-user";
+    const liqUser = await createAuthedUser("liq-test-user");
+    const liqMaker = await createAuthedUser("liq-test-maker");
     const entryPrice = 50000;
     const leverage = 10;
 
     await createOrder(
-      buildOrder({ userId: `${liqUser}-maker`, orderType: "LIMIT", price: entryPrice, qty: 2, positionType: "SHORT" }),
+      buildOrder({ orderType: "LIMIT", price: entryPrice, qty: 2, positionType: "SHORT" }),
+      liqMaker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     await createOrder(
-      buildOrder({ userId: liqUser, orderType: "MARKET", price: 0, qty: 2, positionType: "LONG", leverage }),
+      buildOrder({ orderType: "MARKET", price: 0, qty: 2, positionType: "LONG", leverage }),
+      liqUser.token,
     );
 
     const channel = `trade:${MARKET_ID}`;
     const tradePromise = subscribeToChannel(channel, 5000);
 
-    // Liquidation price for LONG 10x at 50000 ≈ 50000 * (1 - 0.1 + 0.05) = 47500
     const crashPrice = { s: MARKET_ID, p: "47000" };
     await redis.publish("binance-markprices", JSON.stringify(crashPrice));
 
@@ -1098,7 +1119,7 @@ describe("💀 Liquidation", () => {
     const trades = events.filter(isTradeEvent);
 
     if (trades.length > 0) {
-      const liqTrades = trades.filter((t) => t.taker === liqUser || t.maker === liqUser);
+      const liqTrades = trades.filter((t) => t.taker === liqUser.userId || t.maker === liqUser.userId);
       if (liqTrades.length > 0) {
         expect(liqTrades[0]?.qty).toBeGreaterThan(0);
       }
@@ -1108,24 +1129,26 @@ describe("💀 Liquidation", () => {
   it("liquidates a SHORT position when mark price rises above liquidation price", async () => {
     await clearRedisStreams();
 
-    const liqShortUser = "liq-short-user";
+    const liqShortUser = await createAuthedUser("liq-short-user");
+    const liqShortMaker = await createAuthedUser("liq-short-maker");
     const entryPrice = 30000;
     const leverage = 10;
 
     await createOrder(
-      buildOrder({ userId: `${liqShortUser}-maker`, orderType: "LIMIT", price: entryPrice, qty: 2, positionType: "LONG" }),
+      buildOrder({ orderType: "LIMIT", price: entryPrice, qty: 2, positionType: "LONG" }),
+      liqShortMaker.token,
     );
 
     await new Promise((r) => setTimeout(r, 500));
 
     await createOrder(
-      buildOrder({ userId: liqShortUser, orderType: "MARKET", price: 0, qty: 2, positionType: "SHORT", leverage }),
+      buildOrder({ orderType: "MARKET", price: 0, qty: 2, positionType: "SHORT", leverage }),
+      liqShortUser.token,
     );
 
     const channel = `trade:${MARKET_ID}`;
     const tradePromise = subscribeToChannel(channel, 5000);
 
-    // Liquidation price for SHORT 10x at 30000 ≈ 30000 * (1 + 0.1 - 0.05) = 31500
     const pumpPrice = { s: MARKET_ID, p: "32000" };
     await redis.publish("binance-markprices", JSON.stringify(pumpPrice));
 
@@ -1135,7 +1158,7 @@ describe("💀 Liquidation", () => {
     const trades = events.filter(isTradeEvent);
 
     if (trades.length > 0) {
-      const liqTrades = trades.filter((t) => t.taker === liqShortUser || t.maker === liqShortUser);
+      const liqTrades = trades.filter((t) => t.taker === liqShortUser.userId || t.maker === liqShortUser.userId);
       if (liqTrades.length > 0) {
         expect(liqTrades[0]?.qty).toBeGreaterThan(0);
       }
@@ -1143,57 +1166,65 @@ describe("💀 Liquidation", () => {
   });
 });
 
-describe("⚠️ Cancellation", () => {
+describe("Cancellation", () => {
   it("cancels an open limit order", async () => {
     await clearRedisStreams();
 
-    // Place a limit order that won't match (price far from market)
+    const user = await createAuthedUser("cancel-user");
     const res = await createOrder(
-      buildOrder({ userId: "cancel-user", orderType: "LIMIT", price: 10000, qty: 1, positionType: "LONG" }),
+      buildOrder({ orderType: "LIMIT", price: 10000, qty: 1, positionType: "LONG" }),
+      user.token,
     );
     expect(res.status).toBe(200);
     const orderId = res.data!.orderId as string;
     expect(orderId).toBeDefined();
 
-    // Cancel it
     const cancelRes = await cancelOrder(orderId, {
-      userId: "cancel-user",
       marketId: MARKET_ID,
       price: 10000,
       positionType: "LONG",
-    });
+    }, user.token);
     expect(cancelRes.status).toBe(200);
   });
 
   it("returns 400 when cancel body is missing required fields", async () => {
-    const res = await cancelOrder("some-order-id", {} as CancelPayload);
+    const user = await createAuthedUser("cancel-bad-body");
+    const res = await cancelOrder("some-order-id", {} as CancelPayload, user.token);
     expect(res.status).toBe(400);
   });
 });
 
-describe("🏪 Create Market", () => {
+describe("Create Market", () => {
   it("rejects market creation without admin token", async () => {
     const res = await createMarket("NEWMARKET", "New Market", 50);
     expect(res.status).toBe(401);
   });
 
-  it("rejects market creation with invalid data (even with token)", async () => {
-    const res = await api("POST", "/api/v1/order/create-market", { marketId: "X" });
-    // Auth middleware rejects first (no token)
-    expect([400, 401]).toContain(res.status);
+  it("creates a market with admin token", async () => {
+    const admin = await createAdminUser("market-admin");
+    const res = await createMarket(`NEW${Date.now()}`, "New Market", 50, admin.token);
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects market creation with invalid data even with admin token", async () => {
+    const admin = await createAdminUser("market-admin-bad");
+    const res = await api("POST", "/api/v1/order/create-market", { marketId: "X" }, admin.token);
+    expect(res.status).toBe(400);
   });
 });
 
-describe("🔁 Engine Restart Recovery", () => {
+describe("Engine Restart Recovery", () => {
   it("re-processes pending orders from the stream after engine restart", async () => {
     await clearRedisStreams();
 
+    const user = await createAuthedUser("recovery-user");
     await createOrder(
-      buildOrder({ userId: "recovery-user", orderType: "LIMIT", price: 53000, qty: 1, positionType: "SHORT" }),
+      buildOrder({ orderType: "LIMIT", price: 53000, qty: 1, positionType: "SHORT" }),
+      user.token,
     );
 
     const messagesBefore = await readEngineStream();
-    const recoveryOrder = messagesBefore.find((m) => m.userId === "recovery-user");
+    const recoveryOrder = messagesBefore.find((m) => m.userId === user.userId);
     expect(recoveryOrder).toBeDefined();
 
     const allMessages = await readEngineStream();
@@ -1201,7 +1232,7 @@ describe("🔁 Engine Restart Recovery", () => {
   });
 });
 
-describe("🌐 WebSocket Subscription", () => {
+describe("WebSocket Subscription", () => {
   it("connects to the WebSocket server", async () => {
     const ws = new WebSocket(WS_URL);
 
@@ -1237,19 +1268,20 @@ describe("🌐 WebSocket Subscription", () => {
   });
 });
 
-describe("🧪 Cross-market support", () => {
+describe("Cross-market support", () => {
   it("places orders on different markets (ETH, SOL)", async () => {
     for (const market of MARKETS) {
       await clearRedisStreams();
 
+      const user = await createAuthedUser(`cross-market-${market}`);
       const res = await createOrder(
         buildOrder({
-          userId: `cross-market-${market}`,
           marketId: market,
           orderType: "LIMIT",
           price: market === "BTCUSDT" ? 50000 : 3000,
           qty: 1,
         }),
+        user.token,
       );
 
       expect(res.status).toBe(200);

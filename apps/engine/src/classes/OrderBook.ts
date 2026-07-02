@@ -30,6 +30,31 @@ export class OrderBook {
     return this.orderBooks[marketId];
   }
 
+  addMarket(marketId: string) {
+    if (!this.orderBooks[marketId]) {
+      this.orderBooks[marketId] = {
+        asks: new OrderedMap<number, LinkList<Order>>(),
+        bids: new OrderedMap<number, LinkList<Order>>(),
+        lastTradedPrice: 0,
+        indexPrice: 0,
+      };
+    }
+  }
+
+  updateIndexPrice(marketId: string, indexPrice: number) {
+    const book = this.orderBooks[marketId];
+    if (book) {
+      book.indexPrice = indexPrice;
+    }
+  }
+
+  updateLastTradedPrice(marketId: string, price: number) {
+    const book = this.orderBooks[marketId];
+    if (book) {
+      book.lastTradedPrice = price;
+    }
+  }
+
   addLimitOrder(data: Order) {
     let book = this.orderBooks[data.marketId];
     if (!book) {

@@ -2,6 +2,7 @@ import type { dbPollerEvents, UserPositions } from "@shared-types";
 import type { UserManager } from "./UserManager";
 import { DBPoller } from "./DBPollerManager";
 import type { RedisManager } from "./RedisManager";
+import type { RiskManager } from "./RiskManager";
 import type { positionUpdates } from "@shared-types/src/ws/ws.types";
 
 export class PositionManager {
@@ -10,6 +11,7 @@ export class PositionManager {
   constructor(
     private userManager: UserManager,
     private redisManager: RedisManager,
+    private riskManager: RiskManager,
   ) {
     this.allPositions = new Map();
   }
@@ -112,6 +114,14 @@ export class PositionManager {
     existingPosition.qty += position.qty;
     existingPosition.averagePrice = totalAvgPrice;
     existingPosition.margin += position.margin;
+    existingPosition.maintainanceMargin =
+      this.riskManager.calculateMaintainanceMargin(existingPosition.margin);
+    existingPosition.liquidationPrice =
+      this.riskManager.calculateLiquidationMargin(
+        existingPosition.averagePrice,
+        existingPosition.leverage,
+        existingPosition.positionType,
+      );
 
     return existingPosition;
   }
@@ -142,6 +152,7 @@ export class PositionManager {
     existingPosition.margin -= unlockMargin;
     user.collateral.availabe += pnl + unlockMargin;
     user.collateral.locked -= unlockMargin;
+    this.userManager.syncBalance(user);
 
     return existingPosition;
   }
@@ -162,9 +173,16 @@ export class PositionManager {
       throw new Error("user not found in canclePosition");
     }
     existingPosition.realisedPnL += PnL;
-    user.collateral.availabe =
-      user.collateral.availabe + PnL + existingPosition.unrealisedPnL;
+    existingPosition.pnL = PnL;
+    existingPosition.unrealisedPnL = 0;
+
+    // Closing returns the position's locked margin to available and settles the
+    // realized PnL. The last ticker-driven unrealisedPnL must not be added here
+    // (it would double-count the gain/loss already captured by realized PnL).
     user.collateral.locked = user.collateral.locked - existingPosition.margin;
+    user.collateral.availabe =
+      user.collateral.availabe + existingPosition.margin + PnL;
+    this.userManager.syncBalance(user);
 
     user.positions = user.positions.filter(
       (item) => item.marketId !== position.marketId,
@@ -178,8 +196,13 @@ export class PositionManager {
     existingPosition: UserPositions,
     userId: string,
   ): UserPositions {
-    let PnL = 0;
     const user = this.userManager.getUser(userId);
+    if (!user) {
+      throw new Error("user not found in reverse Position");
+    }
+
+    // Realized PnL from fully closing the existing position.
+    let PnL = 0;
     if (existingPosition.positionType === "LONG") {
       PnL =
         (position.averagePrice - existingPosition.averagePrice) * existingPosition.qty;
@@ -187,16 +210,38 @@ export class PositionManager {
       PnL =
         (existingPosition.averagePrice - position.averagePrice) * existingPosition.qty;
     }
+
+    // The incoming order's margin (position.margin) was locked for its full qty.
+    // Only the net (reversed) qty keeps margin locked; the rest offsets the old
+    // position and is released along with the old position's margin.
+    const netQty = position.qty - existingPosition.qty;
+    const newMargin =
+      position.qty > 0 ? position.margin * (netQty / position.qty) : 0;
+    const releasedMargin =
+      existingPosition.margin + (position.margin - newMargin);
+
+    user.collateral.locked -= releasedMargin;
+    user.collateral.availabe += releasedMargin + PnL;
+    this.userManager.syncBalance(user);
+
     existingPosition.positionType = position.positionType;
-    existingPosition.qty = position.qty - existingPosition.qty;
+    existingPosition.qty = netQty;
+    existingPosition.leverage = position.leverage;
+    existingPosition.entryPrice = position.entryPrice;
     existingPosition.averagePrice = position.averagePrice;
-    existingPosition.margin = position.margin;
-    existingPosition.pnL += PnL;
+    existingPosition.margin = newMargin;
+    existingPosition.maintainanceMargin =
+      this.riskManager.calculateMaintainanceMargin(newMargin);
+    existingPosition.liquidationPrice =
+      this.riskManager.calculateLiquidationMargin(
+        position.averagePrice,
+        position.leverage,
+        position.positionType,
+      );
+    existingPosition.pnL = PnL;
     existingPosition.realisedPnL += PnL;
-    if (!user) {
-      throw new Error("user not found in reverse Position");
-    }
-    user.collateral.availabe += PnL;
+    existingPosition.unrealisedPnL = 0;
+
     return existingPosition;
   }
 
@@ -214,6 +259,7 @@ export class PositionManager {
       qty: position.qty,
       pnl: position.pnL,
       realisedPnL: position.realisedPnL,
+      unrealisedPnL: position.unrealisedPnL,
     };
 
     void this.redisManager.publish(channel, createPositionToPublish);

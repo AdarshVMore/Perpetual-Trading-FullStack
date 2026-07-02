@@ -7,8 +7,6 @@ export const userSchemaValidation = z.object({
 })
 
 export const CreateOrderSchema = z.object({
-  // type:  z.enum(["create-order", "cancle-order", "get-order", "create-market"]),
-  userId: z.string(),
   marketId: z.string(),
   price: z.number(),
   qty: z.number().positive(),
@@ -28,7 +26,6 @@ export const getFillsSchema = z.object({
 })
 
 export const cancleOrdersSchema = z.object({
-  userId: z.string(),
   marketId: z.string(),
   price: z.number(),
   positionType: z.enum(["LONG", "SHORT"]),
@@ -45,4 +42,6 @@ export const createMarketSchema = z.object({
   maxLeverage: z.number().max(100)
 })
 
-  // userId, price, qty, marketId, orderType, positionType, leverage 
+export const addBalanceSchema = z.object({
+  amount: z.number().positive(),
+})
