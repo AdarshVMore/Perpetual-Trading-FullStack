@@ -1,5 +1,5 @@
 import type { CreateMarket, Order, dbPollerEvents, marketType, orderStatus, positionType } from "@shared-types/src";
-import type { orderUpdates } from "@shared-types/src/ws/ws.types";
+import type { orderUpdates, depthUpdates } from "@shared-types/src/ws/ws.types";
 import type { MatchingEngine } from "./MatchingEngine";
 import type { RedisManager } from "./RedisManager";
 import type { RiskManager } from "./RiskManager";
@@ -124,7 +124,17 @@ export class EngineServer {
       data.leverage = existingOrder.leverage ?? data.leverage;
     }
 
-    this.orderBook.cancleOrder(data)
+    this.orderBook.cancleOrder(data);
+
+    const depth = this.orderBook.getDepth(data.marketId);
+    const depthEvent: depthUpdates = {
+      type: "depth",
+      market: data.marketId,
+      asks: depth.asks,
+      bids: depth.bids,
+    };
+    const depthChannel = this.redisManager.createChannel("depth", data.marketId);
+    void this.redisManager.publish(depthChannel, depthEvent);
 
     const unlockMargin = this.riskManager.calculateMarginForQty(data, data.remainingQty, data.price);
     this.userManager.unlockBalance(user, unlockMargin);

@@ -98,32 +98,37 @@ export class OrderBook {
     return bestPrice;
   }
 
-  updateRemainingQty(data: Order, bestPrice: number) {
+  updateRemainingQty(
+    data: Order,
+    bestPrice: number,
+  ): { tradeQty: number; restingOrder: Order } | null {
     const book = this.getBook(data.marketId);
-    if(!book){
-      throw new Error("book does not exist for updating emaining qty")
+    if (!book) {
+      throw new Error("book does not exist for updating emaining qty");
     }
     const side = data.positionType === "LONG" ? book.asks : book.bids;
     const iterator = side.find(bestPrice);
     const queue = iterator?.pointer[1];
     if (!queue) {
-      throw new Error("there is no queue for this price");
+      return null;
     }
     const restingOrder = queue.front();
     if (!restingOrder) {
-      throw new Error("there is no .front() in the queue");
+      // Stale price level (e.g. after cancel left an empty queue)
+      side.eraseElementByKey(bestPrice);
+      return null;
     }
-    const tradeQty = Math.min(data.remainingQty, restingOrder?.remainingQty);
+    const tradeQty = Math.min(data.remainingQty, restingOrder.remainingQty);
     data.remainingQty -= tradeQty;
     restingOrder.remainingQty -= tradeQty;
     if (restingOrder.remainingQty === 0) {
       queue.popFront();
-      if(queue.size()=== 0){
-        side.eraseElementByKey(bestPrice)
+      if (queue.size() === 0) {
+        side.eraseElementByKey(bestPrice);
       }
     }
-    
-    return {tradeQty, restingOrder}
+
+    return { tradeQty, restingOrder };
   }
 
   removeFilledOrder() {}
@@ -146,20 +151,27 @@ export class OrderBook {
     }
   }
 
-  cancleOrder(order:Order) {
-    const book = this.orderBooks[order.marketId]
-    if (!book || !order.price) return
+  cancleOrder(order: Order) {
+    const book = this.orderBooks[order.marketId];
+    if (!book || !order.price) return;
 
-    const side = order.positionType === "LONG" ? book.bids : book.asks
-    const list = side.find(order.price)
+    const side = order.positionType === "LONG" ? book.bids : book.asks;
+    const list = side.find(order.price);
     if (!list?.equals(side?.end())) {
-      const orderAtPrice = list?.pointer[1]
-      if (!orderAtPrice) return
-      for(let node = orderAtPrice?.begin(); !node?.equals(orderAtPrice?.end()); node = node?.next()){
-        if(node?.pointer?.orderId === order.orderId){
-          orderAtPrice.eraseElementByIterator(node)
-          break
+      const orderAtPrice = list?.pointer[1];
+      if (!orderAtPrice) return;
+      for (
+        let node = orderAtPrice.begin();
+        !node?.equals(orderAtPrice.end());
+        node = node?.next()
+      ) {
+        if (node?.pointer?.orderId === order.orderId) {
+          orderAtPrice.eraseElementByIterator(node);
+          break;
         }
+      }
+      if (orderAtPrice.size() === 0) {
+        side.eraseElementByKey(order.price);
       }
     }
   }

@@ -90,10 +90,11 @@ export class MatchingEngine {
         if (order.positionType === "SHORT" && bestPrice < order.price) break;
       }
 
-      const { tradeQty, restingOrder } = this.orderBook.updateRemainingQty(
-        order,
-        bestPrice,
-      );
+      const match = this.orderBook.updateRemainingQty(order, bestPrice);
+      if (!match) {
+        continue;
+      }
+      const { tradeQty, restingOrder } = match;
 
       this.orderBook.updateLastTradedPrice(order.marketId, bestPrice);
 
