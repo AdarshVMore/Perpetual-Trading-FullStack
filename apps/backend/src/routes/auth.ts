@@ -95,12 +95,59 @@ routes.post("/signin", async (req:Request, res:Response) => {
   }
 });
 
+const DEMO_EMAILS = ["demo_alice@perp.local", "demo_bob@perp.local"];
+
 routes.get("/balance", authUserMiddleware, async (req: Request, res: Response) => {
   const balance = await db.userBalance.findUnique({ where: { userId: req.userId } });
   res.status(200).json({
     availableBalance: balance?.availableBalance ?? 0,
     lockedBalance: balance?.lockedBalance ?? 0,
   });
+});
+
+routes.get("/demo-users", async (_req: Request, res: Response) => {
+  try {
+    const users = await db.user.findMany({
+      where: { email: { in: DEMO_EMAILS } },
+      select: {
+        id: true,
+        email: true,
+        userBalance: {
+          select: { availableBalance: true, lockedBalance: true },
+        },
+        positions: {
+          where: { status: "OPEN" },
+          select: {
+            marketId: true,
+            qty: true,
+            positionType: true,
+            entryPrice: true,
+          },
+        },
+        orders: {
+          where: {
+            orderStatus: { in: ["OPEN", "PARTIALLY_FILLED"] },
+          },
+          select: { id: true },
+        },
+      },
+    });
+
+    res.status(200).json({
+      users: users.map((user) => ({
+        userId: user.id,
+        username: user.email.replace("@perp.local", ""),
+        availableBalance: user.userBalance?.availableBalance ?? 0,
+        lockedBalance: user.userBalance?.lockedBalance ?? 0,
+        openPositions: user.positions.length,
+        openOrders: user.orders.length,
+        positions: user.positions,
+      })),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to load demo users" });
+  }
 });
 
 routes.post("/add-balance", authUserMiddleware, async (req: Request, res: Response) => {
