@@ -1,11 +1,281 @@
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    @apply bg-red-200 font-sans;
-  }
+:root {
+  color-scheme: dark;
 
-  body {
-    @apply grid place-items-center min-w-[320px] min-h-screen relative m-0;
+  /* WhiteRock palette */
+  --wr-bg: #060708;
+  --wr-bg-elevated: #0c0e12;
+  --wr-card-from: #161920;
+  --wr-card-to: #0a0c10;
+  --wr-card-hover: #12151c;
+  --wr-border: #1a1e26;
+  --wr-border-subtle: #141820;
+  --wr-text: #e8ecf1;
+  --wr-text-secondary: #9aa3b2;
+  --wr-text-muted: #6b7585;
+  --wr-text-dim: #4a5360;
+  --wr-green: #2dff88;
+  --wr-green-dim: #22c97a;
+  --wr-green-glow: rgba(45, 255, 136, 0.12);
+  --wr-red: #ff4560;
+  --wr-red-glow: rgba(255, 69, 96, 0.12);
+  --wr-amber: #f5a623;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--wr-bg);
+  color: var(--wr-text-secondary);
+  font-family:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-mono {
+  font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas,
+    monospace;
+}
+
+/* Card with subtle top-to-bottom gradient */
+.wr-card {
+  background: linear-gradient(
+    180deg,
+    var(--wr-card-from) 0%,
+    var(--wr-card-to) 100%
+  );
+  border: 1px solid var(--wr-border);
+  border-radius: 12px;
+}
+
+.wr-card-inset {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  border: 1px solid var(--wr-border-subtle);
+  border-radius: 10px;
+}
+
+/* Primary CTA with gradient */
+.wr-btn-primary {
+  background: linear-gradient(180deg, #45ff9a 0%, #2dff88 45%, #1ed975 100%);
+  color: #041208;
+  font-weight: 700;
+  border-radius: 10px;
+  transition: filter 0.15s ease, transform 0.1s ease;
+}
+.wr-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+.wr-btn-primary:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.wr-btn-danger {
+  background: linear-gradient(180deg, #ff6b7f 0%, #ff4560 45%, #e83850 100%);
+  color: #1a0508;
+  font-weight: 700;
+  border-radius: 10px;
+  transition: filter 0.15s ease;
+}
+.wr-btn-danger:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+/* Active pill tab */
+.wr-pill-active {
+  background: var(--wr-green-glow);
+  color: var(--wr-green);
+  border-radius: 8px;
+}
+
+/* Sliding segment control (Order Book / Market Trades) */
+.wr-segment {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--wr-border-subtle);
+}
+
+.wr-segment-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  border-radius: 8px;
+  background: var(--wr-green);
+  border: 1px solid rgba(45, 255, 136, 0.25);
+  box-shadow: 0 0 12px rgba(45, 255, 136, 0.08);
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.wr-segment-thumb--right {
+  transform: translateX(calc(100% + 3px));
+}
+
+.wr-segment-btn {
+  position: relative;
+  z-index: 1;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--wr-text-muted);
+  transition: color 0.2s ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+.wr-segment-btn--active {
+  color: var(--wr-bg-elevated);
+}
+
+/* Ticker bar — subtle vertical gradient */
+.wr-ticker {
+  background: linear-gradient(
+    180deg,
+    #12151c 0%,
+    #0c0e12 45%,
+    #080a0d 100%
+  );
+  border-top: 1px solid var(--wr-border-subtle);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Market header — gradient bar aligned with trading view */
+.wr-market-header {
+  background: linear-gradient(
+    180deg,
+    #141820 0%,
+    #0e1016 50%,
+    #0a0c10 100%
+  );
+  border: 1px solid var(--wr-border-subtle);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* Form input — inset gradient like WhiteRock */
+.wr-input {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(0, 0, 0, 0.25) 40%,
+    rgba(0, 0, 0, 0.45) 100%
+  );
+  border: 1px solid var(--wr-border);
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.wr-input:focus-within {
+  border-color: rgba(45, 255, 136, 0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(45, 255, 136, 0.12),
+    0 0 12px rgba(45, 255, 136, 0.06);
+}
+
+.wr-input-select {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(0, 0, 0, 0.35) 100%
+  );
+  border: 1px solid var(--wr-border);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+.wr-nav-active {
+  color: var(--wr-text);
+  position: relative;
+}
+.wr-nav-active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -14px;
+  height: 2px;
+  background: var(--wr-green);
+  border-radius: 1px;
+}
+
+/* Nav underline active */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a3038 transparent;
+}
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #2a3038;
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 9999px;
+  background: #1e2229;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--wr-green);
+  border: 2px solid #0a0c10;
+  box-shadow: 0 0 8px rgba(45, 255, 136, 0.4);
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--wr-green);
+  border: 2px solid #0a0c10;
+  box-shadow: 0 0 8px rgba(45, 255, 136, 0.4);
+  cursor: pointer;
+}
+
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
   }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.animate-ticker {
+  animation: ticker-scroll 40s linear infinite;
 }
