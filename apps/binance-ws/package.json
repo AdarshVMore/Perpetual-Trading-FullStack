@@ -7,7 +7,7 @@
     "@types/bun": "latest"
   },
   "scripts": {
-    "dev": "bun --watch src/index.ts"
+    "dev": "bun --env-file=../../.env --watch src/index.ts"
   },
   "peerDependencies": {
     "typescript": "^5"
