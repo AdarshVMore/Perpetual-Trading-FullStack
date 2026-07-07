@@ -178,4 +178,97 @@ routes.get("/get-fills/:marketId", authUserMiddleware, async (req: Request, res:
   res.status(200).json({ fills: fills });
 });
 
+const CANDLE_VIEW_BY_TIMEFRAME = {
+  "1min": "candles_1min",
+  "1hour": "candles_1hour",
+  "1day": "candles_1day",
+} as const;
+
+type ApiCandleTimeframe = keyof typeof CANDLE_VIEW_BY_TIMEFRAME;
+
+interface DbCandleRow {
+  bucket: Date;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  lastTradeId: string | null;
+}
+
+routes.get("/get-candles/:marketId", async (req: Request, res: Response) => {
+  const marketId = req.params.marketId;
+  if (typeof marketId !== "string") {
+    return res
+      .status(400)
+      .json({ message: "marketId is required to get candles" });
+  }
+
+  const timeframe = String(req.query.timeframe ?? "1min");
+  if (!(timeframe in CANDLE_VIEW_BY_TIMEFRAME)) {
+    return res.status(400).json({
+      message: "timeframe must be one of 1min, 1hour, 1day",
+    });
+  }
+
+  const parsedLimit = Number.parseInt(String(req.query.limit ?? "90"), 10);
+  const limit = Number.isFinite(parsedLimit)
+    ? Math.min(Math.max(parsedLimit, 1), 500)
+    : 90;
+
+  const viewName = CANDLE_VIEW_BY_TIMEFRAME[timeframe as ApiCandleTimeframe];
+
+  try {
+    const candles = await db.$queryRawUnsafe<DbCandleRow[]>(
+      `
+        SELECT
+          bucket,
+          open,
+          high,
+          low,
+          close,
+          "lastTradeId"
+        FROM ${viewName}
+        WHERE "marketId" = $1
+        ORDER BY bucket DESC
+        LIMIT $2
+      `,
+      marketId,
+      limit,
+    );
+
+    res.status(200).json({ candles });
+  } catch (error) {
+    console.error("get-candles failed", error);
+    res.status(200).json({ candles: [] });
+  }
+});
+
+routes.get("/get-market-fills/:marketId", async (req: Request, res: Response) => {
+  const marketId = req.params.marketId;
+  if (typeof marketId !== "string") {
+    return res
+      .status(400)
+      .json({ message: "marketId is required to get market fills" });
+  }
+
+  const parsedLimit = Number.parseInt(String(req.query.limit ?? "500"), 10);
+  const limit = Number.isFinite(parsedLimit)
+    ? Math.min(Math.max(parsedLimit, 1), 2000)
+    : 500;
+
+  const fills = await db.fills.findMany({
+    where: { marketId },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    select: {
+      id: true,
+      price: true,
+      filledQty: true,
+      createdAt: true,
+    },
+  });
+
+  res.status(200).json({ fills });
+});
+
 export default routes;
