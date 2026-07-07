@@ -24,7 +24,7 @@ model User {
 }
 
 model Fills {
-  id           String   @id @default(cuid())
+  id           String   @default(cuid())
   userId       String
   user         User     @relation(fields: [userId], references: [id])
   orderId      String
@@ -39,6 +39,8 @@ model Fills {
   remainingQty Float
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  @@id([id, createdAt])
 }
 
 model Orders {
@@ -58,6 +60,8 @@ model Orders {
   orderStatus  OrderStatus
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
+
+  
 }
 
 model Positions {
