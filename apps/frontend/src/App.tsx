@@ -61,7 +61,7 @@ function Layout() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[var(--wr-bg)] text-[var(--wr-text-secondary)]">
       <TopNav onOpenAuth={openAuth} onOpenSimulator={() => setSimOpen(true)} />
-      <DemoUserSwitcher />
+      {/* <DemoUserSwitcher /> */}
 
       <main className="flex min-h-0 flex-1 gap-3 overflow-hidden p-3">
         {/* Left: market header + chart + bottom panel (trading view column) */}
