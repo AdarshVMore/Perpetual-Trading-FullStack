@@ -1,0 +1,53 @@
+services:
+    - type: keyvalue
+    name: perp-redis
+    plan: free
+    region: singapore
+    ipAllowList: []           
+    maxmemoryPolicy: noeviction
+
+  - type: web
+    name: perp-api
+    runtime: docker
+    dockerfilePath: ./deploy/Dockerfile.api
+    dockerContext: .
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Paste from Neon (include ?sslmode=require).
+      - key: DATABASE_URL
+        sync: false
+      # Your Vercel URL, e.g. https://your-app.vercel.app
+      - key: FRONTEND_URL
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: perp-redis
+          property: connectionString
+      - key: USER_JWT_SECRET
+        generateValue: true
+      - key: ADMIN_JWT_SECRET
+        generateValue: true
+
+  - type: web
+    name: perp-ws
+    runtime: docker
+    dockerfilePath: ./deploy/Dockerfile.ws
+    dockerContext: .
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: perp-redis
+          property: connectionString

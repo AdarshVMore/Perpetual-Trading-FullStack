@@ -1,0 +1,29 @@
+# Keep the Docker build context small and reproducible.
+# NOTE: do NOT exclude any workspace directory wholesale - Bun needs every
+# workspace package.json present for `bun install --frozen-lockfile`.
+
+# Dependencies + build artifacts are recreated inside the image.
+**/node_modules
+**/dist
+**/dist-ssr
+**/.turbo
+**/coverage
+
+# Prisma client is regenerated in the image (`bunx prisma generate`).
+packages/prisma-db/generated
+
+# Local env / secrets - never ship these into the image.
+.env
+**/.env
+**/.env.local
+**/.env.*.local
+apps/frontend/.env.development
+
+# VCS + editor + OS junk
+.git
+.vscode
+.idea
+**/.DS_Store
+
+# Cursor/agent local folders
+terminals

@@ -1,0 +1,27 @@
+# Combined app: public REST API + engine + db-poller + binance-ws.
+# Auto-suspends when the demo is idle and resumes on the next request, so you
+# are billed ~$0 (rootfs storage only) while nobody is using it.
+# Runs Prisma migrations on release. Deploy from the REPO ROOT:
+#   fly deploy -c deploy/fly.api.toml
+app = "perp-api-app"
+primary_region = "bom"
+
+[build]
+  dockerfile = "deploy/Dockerfile.api"
+
+[deploy]
+  release_command = "sh -c 'cd packages/prisma-db && bunx prisma migrate deploy'"
+
+[env]
+  NODE_ENV = "production"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

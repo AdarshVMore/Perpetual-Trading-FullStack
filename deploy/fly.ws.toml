@@ -1,0 +1,21 @@
+# Public WebSocket feed (apps/ws).
+# Deploy from the REPO ROOT:  fly deploy -c deploy/fly.ws.toml
+app = "perp-ws-app"
+primary_region = "bom"
+
+[build]
+  dockerfile = "deploy/Dockerfile.ws"
+
+[env]
+  NODE_ENV = "production"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

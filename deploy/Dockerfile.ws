@@ -1,0 +1,17 @@
+FROM oven/bun:1
+
+RUN apt-get update -y \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY . .
+
+RUN bun install --frozen-lockfile
+
+RUN cd packages/prisma-db && bunx prisma generate
+
+ENV NODE_ENV=production
+
+CMD ["bun", "apps/ws/src/index.ts"]
