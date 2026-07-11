@@ -106,6 +106,22 @@ async function authFetch<T>(
   return res.json() as Promise<T>;
 }
 
+export interface SimBotRecord {
+  userId: string;
+  username: string;
+}
+
+export async function fetchSimBots(
+  prefix = "sim-bot",
+): Promise<SimBotRecord[]> {
+  const res = await fetch(
+    `${API_URL}/auth/sim-bots?prefix=${encodeURIComponent(prefix)}`,
+  );
+  if (!res.ok) return [];
+  const body = (await res.json()) as { bots?: SimBotRecord[] };
+  return body.bots ?? [];
+}
+
 export async function signIn(
   username: string,
   password: string,

@@ -121,9 +121,10 @@ export function MarketSimulatorPanel({
 
         <div className="flex-1 space-y-4 overflow-y-auto p-4">
           <p className="text-[12px] leading-relaxed text-[var(--wr-text-muted)]">
-            Spawns bot traders that continuously place resting bids and asks
-            (isolated from the spread) plus random cancels — visible live in the
-            order book via WebSocket.
+            Reuses existing <code className="text-[var(--wr-text-secondary)]">sim-bot-*</code>{" "}
+            accounts from the database when available, only creating extra bots if
+            needed. Bots place resting bids/asks plus random cancels — visible live
+            in the order book via WebSocket.
           </p>
 
           <div className="grid grid-cols-2 gap-2">

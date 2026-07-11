@@ -105,6 +105,35 @@ routes.get("/balance", authUserMiddleware, async (req: Request, res: Response) =
   });
 });
 
+routes.get("/sim-bots", async (req: Request, res: Response) => {
+  const prefix = String(req.query.prefix ?? "sim-bot").trim();
+  if (!prefix) {
+    return res.status(400).json({ message: "prefix is required" });
+  }
+
+  try {
+    const users = await db.user.findMany({
+      where: {
+        email: { startsWith: `${prefix}` },
+      },
+      orderBy: { email: "asc" },
+      select: { id: true, email: true },
+    });
+
+    const bots = users
+      .filter((user) => user.email.endsWith("@perp.local"))
+      .map((user) => ({
+        userId: user.id,
+        username: user.email.replace("@perp.local", ""),
+      }));
+
+    res.status(200).json({ bots });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to load simulation bots" });
+  }
+});
+
 routes.get("/demo-users", async (_req: Request, res: Response) => {
   try {
     const users = await db.user.findMany({
