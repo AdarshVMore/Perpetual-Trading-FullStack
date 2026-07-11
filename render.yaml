@@ -1,11 +1,12 @@
+# Render Blueprint - deploys the perps backend on the FREE tier (no card).
+#   Frontend  -> Vercel
+#   Postgres  -> Neon      (set DATABASE_URL below)
+#   Redis     -> Upstash   (set REDIS_URL below)
+# Reuses the Docker images in deploy/. Both services sleep after ~15 min idle
+# and cold-start (~1 min) on the next request - fine for a demo.
+# Docs: https://render.com/docs/blueprint-spec
 services:
-    - type: keyvalue
-    name: perp-redis
-    plan: free
-    region: singapore
-    ipAllowList: []           
-    maxmemoryPolicy: noeviction
-
+  # Public REST API + engine + db-poller + binance-ws (all in one service).
   - type: web
     name: perp-api
     runtime: docker
@@ -21,19 +22,18 @@ services:
       # Paste from Neon (include ?sslmode=require).
       - key: DATABASE_URL
         sync: false
+      # Paste from Upstash (rediss://...).
+      - key: REDIS_URL
+        sync: false
       # Your Vercel URL, e.g. https://your-app.vercel.app
       - key: FRONTEND_URL
         sync: false
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: perp-redis
-          property: connectionString
       - key: USER_JWT_SECRET
         generateValue: true
       - key: ADMIN_JWT_SECRET
         generateValue: true
 
+  # Public WebSocket feed.
   - type: web
     name: perp-ws
     runtime: docker
@@ -46,8 +46,6 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Must be the SAME Upstash URL as perp-api.
       - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: perp-redis
-          property: connectionString
+        sync: false
