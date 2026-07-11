@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
 import { LoadTestPanel } from "./components/LoadTestPanel.tsx";
+import { ServerGate } from "./components/ServerGate.tsx";
 import { TradingProvider } from "./context/TradingContext.tsx";
 
 const isLoadTest =
@@ -11,12 +12,14 @@ const isLoadTest =
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {isLoadTest ? (
-      <TradingProvider>
-        <LoadTestPanel />
-      </TradingProvider>
-    ) : (
-      <App />
-    )}
+    <ServerGate>
+      {isLoadTest ? (
+        <TradingProvider>
+          <LoadTestPanel />
+        </TradingProvider>
+      ) : (
+        <App />
+      )}
+    </ServerGate>
   </StrictMode>,
 );

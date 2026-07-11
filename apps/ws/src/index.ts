@@ -7,11 +7,12 @@ import { WebSocketServer } from "ws";
 
 const WS_PORT = Number(process.env.PORT ?? 8080);
 
-// A minimal HTTP server so hosts like Render can health-check on GET /health,
-// while WebSocket upgrade requests are handed to the WebSocketServer below.
 const httpServer = createServer((req, res) => {
   if (req.method === "GET" && (req.url === "/" || req.url === "/health")) {
-    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.writeHead(200, {
+      "Content-Type": "text/plain",
+      "Access-Control-Allow-Origin": "*",
+    });
     res.end("perp-ws ok");
     return;
   }
