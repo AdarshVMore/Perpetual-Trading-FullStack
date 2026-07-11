@@ -377,7 +377,7 @@ function OpenOrders() {
               </td>
               <td className="px-4 py-2 text-right">
                 <button
-                  onClick={() => void cancelOrder(o.orderId)}
+                  onClick={() => void cancelOrder(o)}
                   className="rounded-lg border border-[var(--wr-red)]/30 px-2 py-0.5 text-[11px] font-semibold text-[var(--wr-red)] transition-colors hover:bg-[var(--wr-red-glow)]"
                 >
                   Cancel

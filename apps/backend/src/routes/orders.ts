@@ -83,16 +83,42 @@ routes.post("/cancle-order/:orderId", authUserMiddleware, async (req: Request, r
   const { marketId, price, positionType, qty, leverage, orderType } =
     result.data;
 
+  const dbOrder = await db.orders.findUnique({ where: { id: orderId } });
+  if (dbOrder) {
+    if (dbOrder.userId !== userId) {
+      return res.status(403).json({ message: "not authorized to cancel this order" });
+    }
+    if (!["OPEN", "PARTIALLY_FILLED"].includes(dbOrder.orderStatus)) {
+      return res.status(400).json({ message: "order is not open" });
+    }
+    if (dbOrder.marketId !== marketId) {
+      return res.status(400).json({ message: "marketId does not match order" });
+    }
+  }
+
+  const resolvedPrice = dbOrder?.price ?? price;
+  const resolvedQty =
+    dbOrder && dbOrder.remainingQty > 0
+      ? dbOrder.remainingQty
+      : qty > 0
+        ? qty
+        : dbOrder?.qty ?? qty;
+  const resolvedOrderQty = dbOrder?.qty ?? qty;
+  const resolvedLeverage = dbOrder?.leverage ?? leverage;
+  const resolvedPositionType = dbOrder?.positionType ?? positionType;
+  const resolvedOrderType = dbOrder?.orderType ?? orderType;
+
   await redisClient.XADD("send-to-engine", "*", {
     type: "cancle-order",
     orderId: orderId,
     userId: userId,
     marketId: marketId,
-    price: price.toString(),
-    qty: qty.toString(),
-    leverage: leverage.toString(),
-    orderType: orderType,
-    positionType: positionType,
+    price: resolvedPrice.toString(),
+    qty: resolvedOrderQty.toString(),
+    remainingQty: resolvedQty.toString(),
+    leverage: resolvedLeverage.toString(),
+    orderType: resolvedOrderType,
+    positionType: resolvedPositionType,
   });
   res.status(200).json({ message: "request accepted to cancle the order" });
 });

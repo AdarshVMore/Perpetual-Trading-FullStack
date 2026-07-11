@@ -30,15 +30,21 @@ export class EngineServer {
           for (let singleMessage of stream.messages) {
             const msg = singleMessage.message;
             if (msg.type === "create-order") {
+              const orderType = (msg.orderType ?? "LIMIT") as marketType;
               const order: Order = {
                 orderId: msg.orderId ?? "",
                 userId: msg.userId ?? "",
                 marketId: msg.marketId ?? "",
-                marketType: (msg.orderType ?? "LIMIT") as marketType,
+                marketType: orderType,
                 orderType: msg.orderType ?? "",
                 positionType: (msg.positionType ?? "LONG") as positionType,
                 status: (msg.status ?? "OPEN") as orderStatus,
-                price: msg.price ? parseFloat(msg.price) : undefined,
+                price:
+                  orderType === "MARKET"
+                    ? undefined
+                    : msg.price != null && msg.price !== ""
+                      ? parseFloat(msg.price)
+                      : undefined,
                 qty: msg.qty ? parseFloat(msg.qty) : 0,
                 leverage: msg.leverage ? parseFloat(msg.leverage) : 1,
                 remainingQty: msg.remainingQty ? parseFloat(msg.remainingQty) : 0,
@@ -59,7 +65,7 @@ export class EngineServer {
                 leverage: msg.leverage ? parseFloat(msg.leverage) : 1,
                 remainingQty: msg.remainingQty ? parseFloat(msg.remainingQty) : 0,
               };
-              this.cancleOrder(order)
+              await this.cancleOrder(order)
             } else if(msg.type === "create-market"){
               const createMarket: CreateMarket = {
                 marketName: msg.marketName ?? "",
@@ -112,16 +118,36 @@ export class EngineServer {
     this.matchingEngine.matchOrder(data)
   }
 
-  public cancleOrder(data: Order) {
-    const user = this.userManager.getUser(data.userId);
+  public async cancleOrder(data: Order) {
+    let user = this.userManager.getUser(data.userId);
+    if (!user) {
+      await this.userManager.addUser(data.userId);
+      user = this.userManager.getUser(data.userId);
+    }
     if (!user) return;
 
     const existingOrder = user.orders.find((o) => o.orderId === data.orderId);
     if (existingOrder) {
       data.qty = existingOrder.qty ?? data.qty;
-      data.remainingQty = existingOrder.remainingQty ?? data.remainingQty ?? data.qty;
+      data.remainingQty =
+        existingOrder.remainingQty ?? data.remainingQty ?? data.qty;
       data.price = existingOrder.price ?? data.price;
       data.leverage = existingOrder.leverage ?? data.leverage;
+      data.positionType = existingOrder.positionType ?? data.positionType;
+    }
+
+    if (data.price == null || data.price <= 0) {
+      const bookPrice = this.orderBook.findOrderPrice(
+        data.marketId,
+        data.orderId,
+      );
+      if (bookPrice != null) {
+        data.price = bookPrice;
+      }
+    }
+
+    if (!data.remainingQty || data.remainingQty <= 0) {
+      data.remainingQty = data.qty;
     }
 
     this.orderBook.cancleOrder(data);
@@ -187,8 +213,9 @@ export class EngineServer {
     let user = this.userManager.getUser(userId);
     if (!user) {
       await this.userManager.addUser(userId);
-      return;
+      user = this.userManager.getUser(userId);
     }
+    if (!user) return;
 
     this.userManager.addBalance(user, amount);
   }

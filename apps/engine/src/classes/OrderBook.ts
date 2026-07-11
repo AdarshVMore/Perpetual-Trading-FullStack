@@ -151,9 +151,31 @@ export class OrderBook {
     }
   }
 
+  findOrderPrice(marketId: string, orderId: string): number | undefined {
+    const book = this.orderBooks[marketId];
+    if (!book) return undefined;
+
+    for (const side of [book.bids, book.asks]) {
+      for (let it = side.begin(); !it.equals(side.end()); it = it.next()) {
+        const queue = it.pointer[1];
+        for (
+          let node = queue.begin();
+          !node.equals(queue.end());
+          node = node.next()
+        ) {
+          if (node.pointer?.orderId === orderId) {
+            return it.pointer[0];
+          }
+        }
+      }
+    }
+
+    return undefined;
+  }
+
   cancleOrder(order: Order) {
     const book = this.orderBooks[order.marketId];
-    if (!book || !order.price) return;
+    if (!book || order.price == null) return;
 
     const side = order.positionType === "LONG" ? book.bids : book.asks;
     const list = side.find(order.price);

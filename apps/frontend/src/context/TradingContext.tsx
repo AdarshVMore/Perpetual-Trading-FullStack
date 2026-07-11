@@ -111,7 +111,7 @@ interface TradingContextValue {
     marginType: MarginType;
     leverage: number;
   }) => Promise<void>;
-  cancelOrder: (orderId: string) => Promise<void>;
+  cancelOrder: (order: OpenOrder) => Promise<void>;
   addBalance: (amount: number) => Promise<void>;
   error: string | null;
   notice: string | null;
@@ -463,7 +463,7 @@ export function TradingProvider({ children }: { children: ReactNode }) {
           id: data.orderId as string,
           marketId,
           positionType: data.positionType as import("../lib/types").PositionType,
-          orderType: "LIMIT",
+          orderType: (data.orderType as import("../lib/types").OrderType) ?? "LIMIT",
           price: (data.price as number) ?? 0,
           qty: data.qty as number,
           remainingQty: data.remainingQty as number,
@@ -739,26 +739,27 @@ export function TradingProvider({ children }: { children: ReactNode }) {
   );
 
   const cancelOrder = useCallback(
-    async (orderId: string) => {
+    async (order: OpenOrder) => {
       const activeToken = tokenRef.current;
       if (!activeToken) return;
-      const order = openOrdersRef.current.get(orderId);
-      if (!order) return;
+      if (!isRestingOpenOrder(order)) {
+        setError("Only open limit orders can be cancelled");
+        return;
+      }
       try {
         await cancelOrderApi(activeToken, order, order.leverage);
-        openOrdersRef.current.delete(orderId);
-        syncOpenOrders();
         setNotice("Cancel request accepted");
         if (isDemoSession) {
           setTimeout(() => void refreshDemoSnapshots(), 1200);
         }
+        setTimeout(() => void loadOpenOrders(currentSymbolRef.current), 600);
         setTimeout(() => void loadAccountData(), 600);
         setTimeout(() => void loadAccountData(), 2000);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Cancel failed");
       }
     },
-    [loadAccountData, syncOpenOrders, isDemoSession, refreshDemoSnapshots],
+    [loadAccountData, loadOpenOrders, isDemoSession, refreshDemoSnapshots],
   );
 
   const addBalance = useCallback(

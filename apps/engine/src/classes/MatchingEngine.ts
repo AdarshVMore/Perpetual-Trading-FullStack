@@ -53,6 +53,40 @@ export class MatchingEngine {
     this.dbpoller?.sendToDBPoller(createDBPollerUpdateOrderObject);
   }
 
+  private persistMakerOrderUpdate(restingOrder: Order) {
+    if (restingOrder.remainingQty === 0) {
+      restingOrder.status = "FILLED";
+    } else {
+      restingOrder.status = "PARTIAL_FILLED";
+    }
+    this.sendOrderDBUpdate(restingOrder);
+  }
+
+  private publishDepth(marketId: string) {
+    const depth = this.orderBook.getDepth(marketId);
+    const depthEvent: depthUpdates = {
+      type: "depth",
+      market: marketId,
+      asks: depth.asks,
+      bids: depth.bids,
+    };
+    const depthChannel = this.redisManager.createChannel("depth", marketId);
+    void this.redisManager.publish(depthChannel, depthEvent);
+  }
+
+  private applyExecutionPrice(order: Order, tradeQty: number, tradePrice: number) {
+    if (order.marketType !== "MARKET") return;
+
+    const filledQty = order.qty - order.remainingQty;
+    const priorFilledQty = filledQty - tradeQty;
+    const priorNotional =
+      order.price != null && priorFilledQty > 0
+        ? order.price * priorFilledQty
+        : 0;
+    const totalFilledQty = priorFilledQty + tradeQty;
+    order.price = (priorNotional + tradeQty * tradePrice) / totalFilledQty;
+  }
+
   matchOrder(order: Order) {
     const book = this.orderBook.getBook(order.marketId);
     const createDBPollerOrderCreatedObject: dbPollerEvents = {
@@ -79,6 +113,7 @@ export class MatchingEngine {
     if (!book) {
       throw new Error(`book ith ${order.marketId} does not exist`);
     }
+    let staleMatches = 0;
     while (order.remainingQty > 0) {
       const bestPrice = this.orderBook.getBestPrice(order.positionType, book);
       if (!bestPrice) {
@@ -92,11 +127,15 @@ export class MatchingEngine {
 
       const match = this.orderBook.updateRemainingQty(order, bestPrice);
       if (!match) {
+        staleMatches++;
+        if (staleMatches > 100) break;
         continue;
       }
+      staleMatches = 0;
       const { tradeQty, restingOrder } = match;
 
       this.orderBook.updateLastTradedPrice(order.marketId, bestPrice);
+      this.applyExecutionPrice(order, tradeQty, bestPrice);
 
       response.remainingQty -= tradeQty;
 
@@ -228,17 +267,15 @@ export class MatchingEngine {
           restingOrder.userId,
         );
       }
+
+      this.persistMakerOrderUpdate(restingOrder);
     }
 
-    const depth = this.orderBook.getDepth(order.marketId);
-    const depthEvent: depthUpdates = {
-      type: "depth",
-      market: order.marketId,
-      asks: depth.asks,
-      bids: depth.bids,
-    };
-    const depthChannel = this.redisManager.createChannel("depth", order.marketId);
-    void this.redisManager.publish(depthChannel, depthEvent);
+    if (order.marketType === "LIMIT" && order.remainingQty > 0) {
+      this.orderBook.addToBook(order);
+    }
+
+    this.publishDepth(order.marketId);
 
     const filledQty = order.qty - order.remainingQty;
 
@@ -254,10 +291,6 @@ export class MatchingEngine {
       order.status = "PARTIAL_FILLED";
       this.sendOrderDBUpdate(order);
       this.publishOrderUpdate(order, orderChannel, "orderUpdate");
-    }
-
-    if (order.marketType === "LIMIT" && order.remainingQty > 0) {
-      this.orderBook.addToBook(order);
     }
 
     return response;

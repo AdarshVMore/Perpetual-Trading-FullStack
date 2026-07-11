@@ -65,14 +65,35 @@ async function ensureMarketExists(marketId: string) {
   });
 }
 
+function resolvedStoredPrice(
+  existingPrice: number | null | undefined,
+  executionPrice?: number,
+): number | null {
+  if (existingPrice != null && existingPrice > 0) {
+    return existingPrice;
+  }
+  if (executionPrice != null && executionPrice > 0) {
+    return executionPrice;
+  }
+  return null;
+}
+
+function resolveOrderPrice(
+  order: Order,
+  executionPrice?: number,
+): number | null {
+  return resolvedStoredPrice(order.price, executionPrice);
+}
+
 function getOrderData(order: Order) {
+  const price = resolveOrderPrice(order);
   return {
     userId: order.userId,
-    price: order.price ?? 0,
+    price,
     qty: order.qty,
     remainingQty: order.remainingQty,
     leverage: order.leverage,
-    margin: ((order.price ?? 0) * order.qty) / order.leverage,
+    margin: price != null ? (price * order.qty) / order.leverage : null,
     marketId: order.marketId,
     positionType: order.positionType,
     orderType: order.marketType as OrderType,
@@ -261,20 +282,35 @@ export class AppendData {
     await ensureUserExists(fill.maker);
     await ensureMarketExists(fill.marketId);
 
+    const existingTaker = await db.orders.findUnique({
+      where: { id: fill.takerOrderId },
+    });
+    const takerPrice = resolvedStoredPrice(existingTaker?.price, fill.price);
+
     await db.orders.upsert({
       where: { id: fill.takerOrderId },
       create: {
         id: fill.takerOrderId,
         userId: fill.taker,
         marketId: fill.marketId,
-        qty: fill.qty,
+        price: takerPrice,
+        qty: existingTaker?.qty ?? fill.qty,
         remainingQty: 0,
-        leverage: 1,
-        positionType: "LONG",
-        orderType: "MARKET",
+        leverage: existingTaker?.leverage ?? 1,
+        margin:
+          takerPrice != null
+            ? (takerPrice * (existingTaker?.qty ?? fill.qty)) /
+              (existingTaker?.leverage ?? 1)
+            : null,
+        positionType: existingTaker?.positionType ?? "LONG",
+        orderType: existingTaker?.orderType ?? "MARKET",
         orderStatus: "FILLED",
       },
-      update: {},
+      update: {
+        price: takerPrice,
+        remainingQty: 0,
+        orderStatus: "FILLED",
+      },
     });
 
     await db.fills.create({
