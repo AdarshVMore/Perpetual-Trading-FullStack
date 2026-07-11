@@ -68,9 +68,22 @@ export function PriceChart() {
   const viewportRef = useRef<Viewport>({ start: 0, count: MIN_VISIBLE_CANDLES });
   const hoverRef = useRef<HoverInfo | null>(null);
   const dragRef = useRef<{ lastX: number } | null>(null);
+  const pinchRef = useRef<{ dist: number; centerX: number } | null>(null);
   const prevCandleCountRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
   const [hoverTooltip, setHoverTooltip] = useState<HoverInfo | null>(null);
   const [activeTab, setActiveTab] = useState("Chart");
+
+  const liveRef = useRef({
+    candles,
+    candlesReady,
+    pricePrecision: market.pricePrecision,
+  });
+  liveRef.current = {
+    candles,
+    candlesReady,
+    pricePrecision: market.pricePrecision,
+  };
 
   const resetViewport = useCallback((total: number) => {
     viewportRef.current = clampViewport({ start: 0, count: total }, total);
@@ -80,6 +93,8 @@ export function PriceChart() {
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
+
+    const { candles, candlesReady, pricePrecision } = liveRef.current;
 
     const dpr = window.devicePixelRatio || 1;
     const width = container.clientWidth;
@@ -144,7 +159,7 @@ export function PriceChart() {
       ctx.lineTo(plotW, y);
       ctx.stroke();
       const p = max - ((max - min) / rows) * i;
-      ctx.fillText(p.toFixed(market.pricePrecision), plotW + 6, y + 3);
+      ctx.fillText(p.toFixed(pricePrecision), plotW + 6, y + 3);
     }
 
     const slot = plotW / vp.count;
@@ -199,7 +214,7 @@ export function PriceChart() {
       ctx.fillStyle = "#041208";
       ctx.font = "10px JetBrains Mono, monospace";
       ctx.fillText(
-        candle.c.toFixed(market.pricePrecision),
+        candle.c.toFixed(pricePrecision),
         plotW + 5,
         hy + 3,
       );
@@ -217,9 +232,17 @@ export function PriceChart() {
       ctx.fillRect(plotW, lastY - 8, PAD_RIGHT, 16);
       ctx.fillStyle = "#041208";
       ctx.font = "10px JetBrains Mono, monospace";
-      ctx.fillText(last.c.toFixed(market.pricePrecision), plotW + 5, lastY + 3);
+      ctx.fillText(last.c.toFixed(pricePrecision), plotW + 5, lastY + 3);
     }
-  }, [candles, candlesReady, market.pricePrecision]);
+  }, []);
+
+  const scheduleDraw = useCallback(() => {
+    if (rafRef.current != null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      drawChart();
+    });
+  }, [drawChart]);
 
   useEffect(() => {
     const total = candles.length;
@@ -241,45 +264,49 @@ export function PriceChart() {
       prevCandleCountRef.current = total;
     }
 
-    drawChart();
-  }, [candles, candlesReady, currentSymbol, candleTimeframe, drawChart, resetViewport]);
+    scheduleDraw();
+  }, [candles, candlesReady, currentSymbol, candleTimeframe, scheduleDraw, resetViewport]);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container || activeTab !== "Chart") return;
 
     const plotW = () => Math.max(1, container.clientWidth - PAD_RIGHT);
+    const candleCount = () => liveRef.current.candles.length;
 
-    const onWheel = (e: WheelEvent) => {
-      if (candles.length === 0) return;
-      e.preventDefault();
-
+    const zoomAt = (clientX: number, direction: number) => {
+      const total = candleCount();
+      if (total === 0) return;
       const rect = container.getBoundingClientRect();
-      const x = e.clientX - rect.left;
       const pw = plotW();
-      if (x > pw) return;
+      const x = Math.min(Math.max(0, clientX - rect.left), pw);
 
       const vp = viewportRef.current;
       const anchor = candleAtX(x, pw, vp);
-      const direction = e.deltaY < 0 ? -1 : 1;
       const nextCount = vp.count * ZOOM_FACTOR ** direction;
-      const count = Math.min(
-        candles.length,
-        Math.max(MIN_VISIBLE_CANDLES, nextCount),
-      );
+      const count = Math.min(total, Math.max(MIN_VISIBLE_CANDLES, nextCount));
       const start = anchor - (x / pw) * count;
 
-      viewportRef.current = clampViewport({ start, count }, candles.length);
-      drawChart();
+      viewportRef.current = clampViewport({ start, count }, total);
+      scheduleDraw();
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      if (candleCount() === 0) return;
+      e.preventDefault();
+      const direction = e.deltaY < 0 ? -1 : 1;
+      zoomAt(e.clientX, direction);
     };
 
     const onMouseDown = (e: MouseEvent) => {
-      if (e.button !== 0 || candles.length === 0) return;
+      if (e.button !== 0 || candleCount() === 0) return;
+      e.preventDefault();
       dragRef.current = { lastX: e.clientX };
       container.style.cursor = "grabbing";
     };
 
     const onMouseMove = (e: MouseEvent) => {
+      const total = candleCount();
       const rect = container.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
@@ -293,19 +320,21 @@ export function PriceChart() {
         const delta = (-dx / pw) * vp.count;
         viewportRef.current = clampViewport(
           { start: vp.start + delta, count: vp.count },
-          candles.length,
+          total,
         );
-        hoverRef.current = null;
-        setHoverTooltip(null);
-        drawChart();
-        return;
-      }
-
-      if (x < 0 || x > pw || y < 0 || y > ph || candles.length === 0) {
         if (hoverRef.current) {
           hoverRef.current = null;
           setHoverTooltip(null);
-          drawChart();
+        }
+        scheduleDraw();
+        return;
+      }
+
+      if (x < 0 || x > pw || y < 0 || y > ph || total === 0) {
+        if (hoverRef.current) {
+          hoverRef.current = null;
+          setHoverTooltip(null);
+          scheduleDraw();
         }
         container.style.cursor = "crosshair";
         return;
@@ -313,10 +342,7 @@ export function PriceChart() {
 
       const vp = viewportRef.current;
       const rawIndex = candleAtX(x, pw, vp);
-      const index = Math.min(
-        candles.length - 1,
-        Math.max(0, Math.round(rawIndex)),
-      );
+      const index = Math.min(total - 1, Math.max(0, Math.round(rawIndex)));
 
       const next: HoverInfo = {
         index,
@@ -326,28 +352,100 @@ export function PriceChart() {
       hoverRef.current = next;
       setHoverTooltip(next);
       container.style.cursor = "crosshair";
-      drawChart();
+      scheduleDraw();
     };
 
     const onMouseUp = () => {
-      dragRef.current = null;
-      container.style.cursor = "crosshair";
+      if (dragRef.current) {
+        dragRef.current = null;
+        container.style.cursor = "crosshair";
+      }
     };
 
     const onMouseLeave = () => {
-      dragRef.current = null;
       hoverRef.current = null;
       setHoverTooltip(null);
-      container.style.cursor = "default";
-      drawChart();
+      if (!dragRef.current) container.style.cursor = "default";
+      scheduleDraw();
     };
 
     const onDblClick = () => {
-      resetViewport(candles.length);
-      drawChart();
+      resetViewport(candleCount());
+      scheduleDraw();
     };
 
-    const ro = new ResizeObserver(() => drawChart());
+    const touchDist = (t: TouchList) => {
+      const dx = t[0].clientX - t[1].clientX;
+      const dy = t[0].clientY - t[1].clientY;
+      return Math.hypot(dx, dy);
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (candleCount() === 0) return;
+      if (e.touches.length === 1) {
+        pinchRef.current = null;
+        dragRef.current = { lastX: e.touches[0].clientX };
+      } else if (e.touches.length === 2) {
+        dragRef.current = null;
+        pinchRef.current = {
+          dist: touchDist(e.touches),
+          centerX: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        };
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const total = candleCount();
+      if (total === 0) return;
+
+      if (e.touches.length === 2 && pinchRef.current) {
+        e.preventDefault();
+        const dist = touchDist(e.touches);
+        const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const ratio = pinchRef.current.dist / (dist || 1);
+        const rect = container.getBoundingClientRect();
+        const pw = plotW();
+        const x = Math.min(Math.max(0, centerX - rect.left), pw);
+        const vp = viewportRef.current;
+        const anchor = candleAtX(x, pw, vp);
+        const count = Math.min(
+          total,
+          Math.max(MIN_VISIBLE_CANDLES, vp.count * ratio),
+        );
+        const start = anchor - (x / pw) * count;
+        viewportRef.current = clampViewport({ start, count }, total);
+        pinchRef.current = { dist, centerX };
+        scheduleDraw();
+        return;
+      }
+
+      if (e.touches.length === 1 && dragRef.current) {
+        e.preventDefault();
+        const clientX = e.touches[0].clientX;
+        const dx = clientX - dragRef.current.lastX;
+        dragRef.current.lastX = clientX;
+        const pw = plotW();
+        const vp = viewportRef.current;
+        const delta = (-dx / pw) * vp.count;
+        viewportRef.current = clampViewport(
+          { start: vp.start + delta, count: vp.count },
+          total,
+        );
+        scheduleDraw();
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length === 0) {
+        dragRef.current = null;
+        pinchRef.current = null;
+      } else if (e.touches.length === 1) {
+        pinchRef.current = null;
+        dragRef.current = { lastX: e.touches[0].clientX };
+      }
+    };
+
+    const ro = new ResizeObserver(() => scheduleDraw());
     ro.observe(container);
 
     container.addEventListener("wheel", onWheel, { passive: false });
@@ -356,6 +454,10 @@ export function PriceChart() {
     window.addEventListener("mouseup", onMouseUp);
     container.addEventListener("mouseleave", onMouseLeave);
     container.addEventListener("dblclick", onDblClick);
+    container.addEventListener("touchstart", onTouchStart, { passive: false });
+    container.addEventListener("touchmove", onTouchMove, { passive: false });
+    container.addEventListener("touchend", onTouchEnd);
+    container.addEventListener("touchcancel", onTouchEnd);
 
     return () => {
       ro.disconnect();
@@ -365,8 +467,19 @@ export function PriceChart() {
       window.removeEventListener("mouseup", onMouseUp);
       container.removeEventListener("mouseleave", onMouseLeave);
       container.removeEventListener("dblclick", onDblClick);
+      container.removeEventListener("touchstart", onTouchStart);
+      container.removeEventListener("touchmove", onTouchMove);
+      container.removeEventListener("touchend", onTouchEnd);
+      container.removeEventListener("touchcancel", onTouchEnd);
     };
-  }, [activeTab, candles.length, drawChart, resetViewport]);
+  }, [activeTab, scheduleDraw, resetViewport]);
+
+  useEffect(
+    () => () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    },
+    [],
+  );
 
   const tooltipCandle: Candle | null =
     hoverTooltip && hoverTooltip.index >= 0
@@ -411,7 +524,10 @@ export function PriceChart() {
       <div
         ref={containerRef}
         className="relative flex-1 overflow-hidden rounded-b-xl"
-        style={{ cursor: activeTab === "Chart" ? "crosshair" : undefined }}
+        style={{
+          cursor: activeTab === "Chart" ? "crosshair" : undefined,
+          touchAction: activeTab === "Chart" ? "none" : undefined,
+        }}
       >
         {activeTab === "Chart" ? (
           <>
