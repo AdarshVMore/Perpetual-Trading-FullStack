@@ -5,7 +5,8 @@ import type {
 } from "./types";
 
 export const API_URL =
-  import.meta.env.VITE_API_URL ?? "http://localhost:3000/api/v1";
+  import.meta.env.VITE_API_URL ??
+  (import.meta.env.DEV ? "/api/v1" : "http://localhost:3000/api/v1");
 export const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:8080";
 
 export interface MarketMeta {
