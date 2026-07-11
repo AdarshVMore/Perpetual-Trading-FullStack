@@ -2,8 +2,8 @@ import jwt from "jsonwebtoken"
 import type { Response, Request, NextFunction } from "express"
 import db from "@prisma-db"
 
-const userJWT_Secret = "user_secret"
-const adminJWT_Secret = "admin_secret"
+const userJWT_Secret = process.env.USER_JWT_SECRET ?? "user_secret"
+const adminJWT_Secret = process.env.ADMIN_JWT_SECRET ?? "admin_secret"
 
 export async function authUserMiddleware(req:Request, res:Response,next:NextFunction){
     const tokenArray = req.headers.authorization

@@ -3,7 +3,7 @@ import type { RedisClientType } from "redis";
 
 let redisClient: RedisClientType | null = null;
 
-const redisUrl = "redis://localhost:6379";
+const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
 
 export async function createRedisConnection(): Promise<RedisClientType | null> {
   if (!redisClient) {

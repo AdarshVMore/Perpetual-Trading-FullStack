@@ -1,5 +1,5 @@
-const user_JWT_SECRET = "user_secret"
-const admin_JWT_Secret = "admin_secret"
+const user_JWT_SECRET = process.env.USER_JWT_SECRET ?? "user_secret"
+const admin_JWT_Secret = process.env.ADMIN_JWT_SECRET ?? "admin_secret"
 
 import { Router } from "express";
 import type { Response, Request } from "express";
