@@ -7,10 +7,11 @@ A perpetual futures exchange built from scratch: a hand written matching engine,
 > The demo runs on free infra that sleeps when idle, so the first visit takes a minute to wake up (the app shows a loading gate). It is paper trading with play money, no real assets.
 
 <!-- TODO: add your trading UI screenshot here. Drag an image into a GitHub issue to get a user-attachments URL, then paste it below. -->
-![WhiteRock trading UI](docs/trading-ui.png)
 
 ### System architecture
 <img width="1371" height="640" alt="System architecture" src="https://github.com/user-attachments/assets/ed3efa78-aa82-4e83-8ff0-49584c51f3ad" />
+
+<img width="1920" height="978" alt="image" src="https://github.com/user-attachments/assets/f27fc248-9ab4-4fe8-b7b5-7dfc98626795" />
 
 
 ## The 30 second version
