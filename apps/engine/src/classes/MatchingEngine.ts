@@ -71,7 +71,7 @@ export class MatchingEngine {
       bids: depth.bids,
     };
     const depthChannel = this.redisManager.createChannel("depth", marketId);
-    void this.redisManager.publish(depthChannel, depthEvent);
+    void this.redisManager.publishWithSnapshot(depthChannel, depthEvent);
   }
 
   private applyExecutionPrice(order: Order, tradeQty: number, tradePrice: number) {

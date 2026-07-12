@@ -45,6 +45,11 @@ export class WebsocketManager {
         this.subscriptionManager.subscribe(channel, socket);
         await this.initializePubSub.sendMessageBack(channel);
         socket.send(JSON.stringify({ type: "SUBSCRIBED", channel }));
+
+        const snapshot = await this.initializePubSub.getSnapshot(channel);
+        if (snapshot && socket.readyState === WebSocket.OPEN) {
+          socket.send(snapshot);
+        }
       } else if (message.type === "UNSUBSCRIBE") {
         const channel = this.subscriptionManager.createChannel(
           message.channel,

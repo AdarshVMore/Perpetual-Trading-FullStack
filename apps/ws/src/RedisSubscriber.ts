@@ -1,10 +1,12 @@
-import { createRedisConnection } from "@redis-client";
+import { createRedisConnection, snapshotKey } from "@redis-client";
 import { SubcriptionManager } from "./SubscriptionManager";
 import type { RedisClientType } from "redis";
 import { WebSocket } from "ws";
 
 export class initializePubSub {
   private subscriber: RedisClientType | null = null;
+
+  private snapshotReader: RedisClientType | null = null;
   private activeChannels = new Set<string>();
 
   constructor(private subscriptionmanager: SubcriptionManager) {}
@@ -14,6 +16,26 @@ export class initializePubSub {
     this.subscriber?.on("error", (err: Error) => {
       console.log(err);
     });
+
+    this.snapshotReader = (this.subscriber?.duplicate() ?? null) as
+      | RedisClientType
+      | null;
+    if (this.snapshotReader) {
+      this.snapshotReader.on("error", (err: Error) => {
+        console.log(err);
+      });
+      await this.snapshotReader.connect();
+    }
+  }
+
+  async getSnapshot(channelName: string): Promise<string | null> {
+    if (!this.snapshotReader) return null;
+    try {
+      return await this.snapshotReader.get(snapshotKey(channelName));
+    } catch (error) {
+      console.error("failed to read snapshot for", channelName, error);
+      return null;
+    }
   }
 
   async sendMessageBack(channelName: string) {

@@ -160,7 +160,7 @@ export class EngineServer {
       bids: depth.bids,
     };
     const depthChannel = this.redisManager.createChannel("depth", data.marketId);
-    void this.redisManager.publish(depthChannel, depthEvent);
+    void this.redisManager.publishWithSnapshot(depthChannel, depthEvent);
 
     const unlockMargin = this.riskManager.calculateMarginForQty(data, data.remainingQty, data.price);
     this.userManager.unlockBalance(user, unlockMargin);

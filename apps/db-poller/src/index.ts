@@ -8,10 +8,6 @@ if (!redisClient) {
   throw new Error("db-poller failed to connect to redis");
 }
 
-// Resume from the last processed id so a restart does not reprocess the whole
-// stream from the beginning. On first run (no checkpoint) start at "$" so we
-// only consume new events instead of grinding through a large historical
-// backlog, which would keep the poller permanently behind real time.
 const stored = await redisClient.get(CHECKPOINT_KEY);
 let lastMessageId = stored ?? "$";
 
@@ -45,8 +41,6 @@ while (true) {
         const appendData = new AppendData(payload);
         await appendData.manipulateDB();
       } catch (err) {
-        // A single malformed/duplicate message must not wedge the pipeline
-        // forever. Log it and advance the cursor so later events still persist.
         console.error(
           "db-poller failed to process message",
           singleMessage.id,

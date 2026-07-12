@@ -1,4 +1,4 @@
-import { createRedisConnection } from "@redis-client";
+import { createRedisConnection, snapshotKey } from "@redis-client";
 import type { RedisClientType } from "redis";
 import type { EngineEvents } from "@shared-types/src";
 
@@ -47,6 +47,15 @@ export class RedisManager {
       throw new Error("Redis publisher client is not connected");
     }
     await this.publisherClient.publish(channel, JSON.stringify(data));
+  }
+
+  async publishWithSnapshot(channel: string, data: EngineEvents) {
+    if (!this.publisherClient) {
+      throw new Error("Redis publisher client is not connected");
+    }
+    const payload = JSON.stringify(data);
+    await this.publisherClient.publish(channel, payload);
+    await this.publisherClient.set(snapshotKey(channel), payload);
   }
 
   getPublisherClient() {
