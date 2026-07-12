@@ -137,8 +137,13 @@ export function PriceChart() {
     let min = Infinity;
     let max = -Infinity;
     for (const c of visible) {
-      min = Math.min(min, c.l);
-      max = Math.max(max, c.h);
+      if (Number.isFinite(c.l)) min = Math.min(min, c.l);
+      if (Number.isFinite(c.h)) max = Math.max(max, c.h);
+    }
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      const fallback = candles[candles.length - 1]?.c ?? 0;
+      min = fallback;
+      max = fallback;
     }
     const range = max - min || max * 0.001 || 1;
     min -= range * 0.08;
@@ -476,7 +481,10 @@ export function PriceChart() {
 
   useEffect(
     () => () => {
-      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
     },
     [],
   );
