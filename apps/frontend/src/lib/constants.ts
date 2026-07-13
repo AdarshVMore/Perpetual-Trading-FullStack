@@ -15,14 +15,13 @@ export interface MarketMeta {
   base: string;
   pricePrecision: number;
   qtyPrecision: number;
-  /** Fallback when no live index/mark/trade price is available */
   referencePrice: number;
 }
 
 export const MARKETS: MarketMeta[] = [
   {
     symbol: "BTCUSD",
-    label: "BTC-PERP",
+    label: "BTC-USD",
     base: "BTC",
     pricePrecision: 2,
     qtyPrecision: 4,
@@ -30,7 +29,7 @@ export const MARKETS: MarketMeta[] = [
   },
   {
     symbol: "ETHUSD",
-    label: "ETH-PERP",
+    label: "ETH-USD",
     base: "ETH",
     pricePrecision: 2,
     qtyPrecision: 4,
@@ -38,7 +37,7 @@ export const MARKETS: MarketMeta[] = [
   },
   {
     symbol: "SOLUSD",
-    label: "SOL-PERP",
+    label: "SOL-USD",
     base: "SOL",
     pricePrecision: 2,
     qtyPrecision: 2,
@@ -50,7 +49,6 @@ export function getMarket(symbol: TradableSymbol): MarketMeta {
   return MARKETS.find((m) => m.symbol === symbol) ?? MARKETS[0];
 }
 
-/** Live prices only — no stale hardcoded fallback. */
 export function resolveLivePrice(
   _symbol: TradableSymbol,
   live?: { last?: number; mark?: number; index?: number },

@@ -312,6 +312,24 @@ export function TradingProvider({ children }: { children: ReactNode }) {
     }
   }, [loadOpenOrders, pushPersonalState]);
 
+  const reconcileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleReconcile = useCallback(
+    (delayMs = 1500) => {
+      if (reconcileTimerRef.current) return;
+      reconcileTimerRef.current = setTimeout(() => {
+        reconcileTimerRef.current = null;
+        void loadAccountData();
+      }, delayMs);
+    },
+    [loadAccountData],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (reconcileTimerRef.current) clearTimeout(reconcileTimerRef.current);
+    };
+  }, []);
+
   const loadMarketCandles = useCallback(
     async (symbol: TradableSymbol, timeframe: ChartTimeframe) => {
       const { apiTimeframe, bucketMs } = getTimeframeConfig(timeframe);
@@ -477,15 +495,33 @@ export function TradingProvider({ children }: { children: ReactNode }) {
           openOrdersRef.current.delete(mapped.orderId);
         }
         syncOpenOrders();
-        void loadAccountData();
+
+        if (!isRestingOpenOrder(mapped)) {
+          scheduleReconcile();
+        }
         return;
       }
 
       if (type === "position") {
-        void loadAccountData();
+        const marketId = data.marketId as string;
+        const symbol = toTradableSymbol(marketId);
+        if (!symbol) return;
+
+        const { changed } = personalSyncRef.current.applyLivePosition({
+          marketSymbol: symbol,
+          type: data.side as import("../lib/types").PositionType,
+          quantity: data.qty as number,
+          entryPrice: data.price as number,
+        });
+
+        if (changed) {
+          pushPersonalState();
+          scheduleReconcile();
+        }
+        return;
       }
     },
-    [loadAccountData, syncOpenOrders],
+    [pushPersonalState, scheduleReconcile, syncOpenOrders],
   );
 
   const bootstrapSymbol = useCallback(
@@ -662,7 +698,7 @@ export function TradingProvider({ children }: { children: ReactNode }) {
     void refreshDemoSnapshots();
     const timer = setInterval(() => {
       void refreshDemoSnapshots();
-    }, 3000);
+    }, 15000);
     return () => clearInterval(timer);
   }, [isDemoSession, refreshDemoSnapshots]);
 
@@ -713,9 +749,7 @@ export function TradingProvider({ children }: { children: ReactNode }) {
         if (isDemoSession) {
           setTimeout(() => void refreshDemoSnapshots(), 1200);
         }
-        // engine + db-poller are async — refresh after a short delay
-        setTimeout(() => void loadAccountData(), 600);
-        setTimeout(() => void loadAccountData(), 2000);
+        scheduleReconcile(2000);
         if (params.type === "LIMIT") {
           openOrdersRef.current.set(orderId, {
             orderId,
@@ -735,7 +769,7 @@ export function TradingProvider({ children }: { children: ReactNode }) {
         setError(err instanceof Error ? err.message : "Order failed");
       }
     },
-    [loadAccountData, syncOpenOrders, isDemoSession, refreshDemoSnapshots],
+    [scheduleReconcile, syncOpenOrders, isDemoSession, refreshDemoSnapshots],
   );
 
   const cancelOrder = useCallback(
@@ -752,14 +786,14 @@ export function TradingProvider({ children }: { children: ReactNode }) {
         if (isDemoSession) {
           setTimeout(() => void refreshDemoSnapshots(), 1200);
         }
-        setTimeout(() => void loadOpenOrders(currentSymbolRef.current), 600);
-        setTimeout(() => void loadAccountData(), 600);
-        setTimeout(() => void loadAccountData(), 2000);
+        openOrdersRef.current.delete(order.orderId);
+        syncOpenOrders();
+        scheduleReconcile(2000);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Cancel failed");
       }
     },
-    [loadAccountData, loadOpenOrders, isDemoSession, refreshDemoSnapshots],
+    [scheduleReconcile, syncOpenOrders, isDemoSession, refreshDemoSnapshots],
   );
 
   const addBalance = useCallback(

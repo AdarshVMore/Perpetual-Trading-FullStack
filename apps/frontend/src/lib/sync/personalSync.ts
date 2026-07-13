@@ -59,6 +59,39 @@ export class PersonalSync {
     };
   }
 
+  applyLivePosition(update: {
+    marketSymbol: TradableSymbol;
+    type: UiPosition["type"];
+    quantity: number;
+    entryPrice: number;
+  }): { changed: boolean } {
+    const existing = this.positions.get(update.marketSymbol);
+
+    if (update.quantity === 0) {
+      if (!existing) return { changed: false };
+      this.positions.delete(update.marketSymbol);
+      return { changed: true };
+    }
+
+    const changed =
+      !existing ||
+      existing.quantity !== update.quantity ||
+      existing.entryPrice !== update.entryPrice ||
+      existing.type !== update.type;
+
+    this.positions.set(update.marketSymbol, {
+      marketSymbol: update.marketSymbol,
+      type: update.type,
+      quantity: update.quantity,
+      entryPrice: update.entryPrice,
+      margin: existing?.margin ?? 0,
+      marginType: existing?.marginType ?? "ISOLATED",
+      liquidationPrice: existing?.liquidationPrice ?? 0,
+    });
+
+    return { changed };
+  }
+
   applyPositionSnapshot(snapshot: PositionSnapshot): void {
     this.positions = new Map();
     for (const pos of Object.values(snapshot.positions)) {
@@ -123,7 +156,6 @@ export class PersonalSync {
     return this.balance;
   }
 
-  /** Prepend HTTP-recovered fills; skips ids already applied via the live stream. */
   seedFills(historical: UiFill[]): void {
     if (historical.length === 0) return;
     const existingIds = new Set(this.fills.map((f) => f.fillId));

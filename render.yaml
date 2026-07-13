@@ -19,6 +19,10 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # How often binance-ws flushes the latest price per symbol to Redis (ms).
+      # Higher = fewer Redis commands (protects Upstash free-tier quota).
+      - key: PUBLISH_INTERVAL_MS
+        value: "3000"
       # Paste from Neon (include ?sslmode=require).
       - key: DATABASE_URL
         sync: false
