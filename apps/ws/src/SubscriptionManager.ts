@@ -17,7 +17,6 @@ export class SubcriptionManager {
 
     this.channelToSocket.get(channel)?.add(socket);
   }
-
   removeSocket(socket: WebSocket) {
     const channels = this.socketToChannel.get(socket);
     if (!channels) {
