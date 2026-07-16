@@ -3,7 +3,15 @@ import { WebSocketServer, WebSocket, type RawData } from "ws";
 import { SubcriptionManager } from "./SubscriptionManager";
 import type { initializePubSub } from "./RedisSubscriber";
 
+/** Wait after last client leaves before stopping Binance (avoids flap on tab refresh). */
+const BINANCE_IDLE_STOP_MS = Number(process.env.BINANCE_IDLE_STOP_MS ?? 30_000);
+const BINANCE_HEARTBEAT_MS = Number(process.env.BINANCE_HEARTBEAT_MS ?? 30_000);
+
 export class WebsocketManager {
+  private connectionCount = 0;
+  private stopTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
   constructor(
     private ws: WebSocketServer,
     private subscriptionManager: SubcriptionManager,
@@ -14,14 +22,60 @@ export class WebsocketManager {
 
   handleConnect() {
     this.ws.on("connection", (socket: WebSocket) => {
+      this.onClientJoined();
+
       socket.on("message", (data: RawData) => {
         void this.handleMessage(socket, data.toString());
       });
 
       socket.on("close", async () => {
         await this.handleDisconnect(socket);
+        this.onClientLeft();
       });
     });
+  }
+
+  private onClientJoined() {
+    this.connectionCount += 1;
+
+    if (this.stopTimer) {
+      clearTimeout(this.stopTimer);
+      this.stopTimer = null;
+    }
+
+    if (this.connectionCount === 1) {
+      void this.initializePubSub.setBinanceWanted(true);
+      this.startHeartbeat();
+    }
+  }
+
+  private onClientLeft() {
+    this.connectionCount = Math.max(0, this.connectionCount - 1);
+
+    if (this.connectionCount > 0) return;
+
+    this.stopHeartbeat();
+    this.stopTimer = setTimeout(() => {
+      this.stopTimer = null;
+      if (this.connectionCount === 0) {
+        void this.initializePubSub.setBinanceWanted(false);
+      }
+    }, BINANCE_IDLE_STOP_MS);
+  }
+
+  private startHeartbeat() {
+    if (this.heartbeatTimer) return;
+    this.heartbeatTimer = setInterval(() => {
+      if (this.connectionCount > 0) {
+        void this.initializePubSub.refreshBinanceWanted();
+      }
+    }, BINANCE_HEARTBEAT_MS);
+  }
+
+  private stopHeartbeat() {
+    if (!this.heartbeatTimer) return;
+    clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = null;
   }
 
   async handleDisconnect(socket: WebSocket) {
@@ -74,26 +128,4 @@ export class WebsocketManager {
       );
     }
   }
-
-  //   startFakeDepthFeed() {
-  //     setInterval(() => {
-  //       const channel = "depth:BTCUSDT";
-
-  //       const subscribers = this.subscriptionManager.getSubscribers(channel);
-
-  //       if (!subscribers) {
-  //         throw new Error("no subscribers found");
-  //       }
-
-  //       for (const socket of subscribers) {
-  //         socket.send(
-  //           JSON.stringify({
-  //             channel,
-  //             bids: [[50000, 2]],
-  //             asks: [[50100, 1]],
-  //           }),
-  //         );
-  //       }
-  //     }, 2000);
-  //   }
 }

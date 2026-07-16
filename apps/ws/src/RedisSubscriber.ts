@@ -1,4 +1,10 @@
-import { createRedisConnection, snapshotKey } from "@redis-client";
+import {
+  BINANCE_CONTROL_CHANNEL,
+  BINANCE_WANTED_KEY,
+  BINANCE_WANTED_TTL_SECONDS,
+  createRedisConnection,
+  snapshotKey,
+} from "@redis-client";
 import { SubcriptionManager } from "./SubscriptionManager";
 import type { RedisClientType } from "redis";
 import { WebSocket } from "ws";
@@ -35,6 +41,36 @@ export class initializePubSub {
     } catch (error) {
       console.error("failed to read snapshot for", channelName, error);
       return null;
+    }
+  }
+
+  async setBinanceWanted(wanted: boolean) {
+    if (!this.snapshotReader) return;
+    try {
+      if (wanted) {
+        await this.snapshotReader.set(BINANCE_WANTED_KEY, "1", {
+          EX: BINANCE_WANTED_TTL_SECONDS,
+        });
+        await this.snapshotReader.publish(BINANCE_CONTROL_CHANNEL, "start");
+        console.log("signaled binance start");
+      } else {
+        await this.snapshotReader.del(BINANCE_WANTED_KEY);
+        await this.snapshotReader.publish(BINANCE_CONTROL_CHANNEL, "stop");
+        console.log("signaled binance stop");
+      }
+    } catch (error) {
+      console.error("failed to signal binance demand", error);
+    }
+  }
+
+  async refreshBinanceWanted() {
+    if (!this.snapshotReader) return;
+    try {
+      await this.snapshotReader.set(BINANCE_WANTED_KEY, "1", {
+        EX: BINANCE_WANTED_TTL_SECONDS,
+      });
+    } catch (error) {
+      console.error("failed to refresh binance wanted key", error);
     }
   }
 
