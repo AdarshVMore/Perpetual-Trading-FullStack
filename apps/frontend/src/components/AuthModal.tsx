@@ -153,11 +153,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     }`}
                   >
                     <div
-                      className={`flex h-11 w-11 items-center justify-center rounded-full text-sm font-bold ${
-                        account.accent === "green"
-                          ? "bg-[var(--wr-green)] text-black"
-                          : "bg-amber-400 text-black"
-                      }`}
+                      className={`flex h-11 w-11 items-center justify-center rounded-full text-sm font-bold`}
                     >
                       {account.displayName[0]}
                     </div>
