@@ -7,7 +7,6 @@ import {
   ArrowRight,
   Sparkles,
   ArrowLeft,
-  Users,
 } from "lucide-react";
 import { DEMO_ACCOUNTS } from "../lib/demoAccounts";
 import { ensureDemoAccounts } from "../lib/api";
@@ -136,39 +135,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {showDemoPicker ? (
             <div className="space-y-4">
               <p className="text-sm text-[var(--wr-text-muted)]">
-                Pick a shared demo account. Switch anytime from the top bar to
-                trade against yourself live.
+                Pick a demo user. Switch anytime from the top bar.
               </p>
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {DEMO_ACCOUNTS.map((account) => (
                   <button
                     key={account.username}
                     onClick={() => void handlePickDemoUser(account.username)}
                     disabled={loading}
-                    className={`flex w-full items-center gap-4 rounded-xl border px-4 py-4 text-left transition-colors disabled:opacity-50 ${
-                      account.accent === "green"
-                        ? "border-[var(--wr-green)]/25 bg-[var(--wr-green-glow)] hover:border-[var(--wr-green)]/50"
-                        : "border-amber-400/25 bg-amber-400/10 hover:border-amber-400/50"
-                    }`}
+                    className="flex w-full items-center gap-3 rounded-xl border border-[var(--wr-border)] bg-black/30 px-4 py-3 text-left transition-colors hover:bg-[var(--wr-card-hover)] disabled:opacity-50"
                   >
-                    <div
-                      className={`flex h-11 w-11 items-center justify-center rounded-full text-sm font-bold`}
-                    >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--wr-border)] bg-[var(--wr-bg-elevated)] text-sm font-semibold text-[var(--wr-text)]">
                       {account.displayName[0]}
                     </div>
-                    <div>
-                      <div className="text-[15px] font-semibold text-white">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold text-white">
                         {account.displayName}
                       </div>
                       <div className="text-[12px] text-[var(--wr-text-muted)]">
                         {account.role}
                       </div>
-                      <div className="mt-1 font-mono text-[11px] text-[var(--wr-text-dim)]">
-                        @{account.username} · $1,000,000 balance
-                      </div>
                     </div>
-                    <Users className="ml-auto h-4 w-4 text-[var(--wr-text-dim)]" />
+                    <ArrowRight className="h-4 w-4 shrink-0 text-[var(--wr-text-dim)]" />
                   </button>
                 ))}
               </div>
@@ -269,7 +258,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 disabled={loading}
                 className="flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--wr-green)]/20 bg-black/30 py-3 text-sm font-semibold text-[var(--wr-green)] transition-colors hover:bg-[var(--wr-card-hover)]"
               >
-                <Sparkles className="h-4 w-4 text-[var(--wr-green)]" />
                 One-Click Demo Account
               </button>
             </>
