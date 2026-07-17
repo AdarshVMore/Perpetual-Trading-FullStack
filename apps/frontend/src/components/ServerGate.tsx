@@ -37,6 +37,50 @@ async function probe(url: string): Promise<boolean> {
 
 const ESTIMATE_SECONDS = 90;
 
+const LOADING_MESSAGES = [
+  {
+    afterSeconds: 0,
+    text: "Waking up the trading server…",
+  },
+  {
+    afterSeconds: 5,
+    text: "This demo runs on Render's free tier. After ~15 minutes of inactivity, the backend sleeps to save resources.",
+  },
+  {
+    afterSeconds: 12,
+    text: "We're calling /health on the API and WebSocket services every few seconds until both return 200 OK.",
+  },
+  {
+    afterSeconds: 20,
+    text: "Still loading — this is not a CORS error. The server is cold-starting and can take a minute or two to respond.",
+  },
+  {
+    afterSeconds: 30,
+    text: "Once health checks pass, the dashboard opens automatically. First visit after idle usually takes 2–3 minutes.",
+  },
+  {
+    afterSeconds: 45,
+    text: "Render free instances boot slowly on the first request. Thanks for hanging in there.",
+  },
+  {
+    afterSeconds: 60,
+    text: "Almost there — the API and live price feed are spinning up now.",
+  },
+  {
+    afterSeconds: 80,
+    text: "Any moment now. You'll land on the trading UI as soon as both services are healthy.",
+  },
+] as const;
+
+function messageForElapsed(seconds: number): string {
+  let message: string = LOADING_MESSAGES[0].text;
+  for (const item of LOADING_MESSAGES) {
+    if (seconds >= item.afterSeconds) message = item.text;
+    else break;
+  }
+  return message;
+}
+
 export function ServerGate({ children }: { children: ReactNode }) {
   const enabled = import.meta.env.PROD;
   const apiHealth = useMemo(() => toHealthUrl(API_URL), []);
@@ -83,11 +127,12 @@ export function ServerGate({ children }: { children: ReactNode }) {
   if (ready) return <>{children}</>;
 
   const progress = Math.min(95, Math.round((seconds / ESTIMATE_SECONDS) * 100));
+  const statusMessage = messageForElapsed(seconds);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--wr-bg)] p-6">
-      <div className="w-full max-w-sm text-center">
-        <p className="text-sm text-[var(--wr-text-secondary)]">
+      <div className="w-full max-w-md text-center">
+        <p className="text-sm font-medium text-[var(--wr-text)]">
           Waiting for server to start…
         </p>
         <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-[var(--wr-border)]">
@@ -96,8 +141,14 @@ export function ServerGate({ children }: { children: ReactNode }) {
             style={{ width: `${progress}%` }}
           />
         </div>
-        <p className="mt-3 text-xs text-[var(--wr-text-dim)]">
-          This may take 1–2 minutes on the first visit.
+        <p
+          key={statusMessage}
+          className="wr-message-fade mt-5 min-h-[4.5rem] text-sm leading-relaxed text-[var(--wr-text-muted)]"
+        >
+          {statusMessage}
+        </p>
+        <p className="mt-2 text-xs text-[var(--wr-text-dim)]">
+          Polling /health · usually 2–3 min max after idle
         </p>
       </div>
     </div>

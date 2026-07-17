@@ -279,3 +279,18 @@ input[type="range"]::-moz-range-thumb {
 .animate-ticker {
   animation: ticker-scroll 40s linear infinite;
 }
+
+@keyframes wr-message-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.wr-message-fade {
+  animation: wr-message-fade 0.45s ease-out;
+}
